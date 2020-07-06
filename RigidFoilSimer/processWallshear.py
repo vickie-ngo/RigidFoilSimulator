@@ -96,24 +96,32 @@ def wallshearData(Files, FoilDyn, FoilGeo, cutoff =0.2):
         start_time_step = round(last_time_step, -3)   
     else:
         start_time_step = round(last_time_step, -3) - 1000
+<<<<<<< HEAD
     
     for x in range(len(file_names)):
         file_path = convert_2_txt(data_path+"\\"+file_names[x])
         time_step = int(file_names[x].split('-')[-1].split('.')[0])
         theta = FoilDyn.theta[time_step]
         if time_step > start_time_step and round(theta,3) != 0: # and time_step % 10 == 0:
+=======
+        
+    for x in range(len(file_names)):
+        file_path = convert_2_txt(data_path+"\\"+file_names[x])
+        time_step = int(file_names[x].split('-')[-1].split('.')[0])
+        if time_step > start_time_step and round(FoilDyn.theta[time_step],3) != 0: # and time_step % 10 == 0:
+>>>>>>> 802642a35e25c315ea00f38cade11063783471a4
             final_data = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time_step], FoilDyn.h[time_step], cutoff)
             np.savetxt(savePath + str(time_step) + '.txt', final_data[:-1,:], fmt="%s")
             final_data = final_data[1:,:].astype(float)
             processed_data = np.transpose(np.append([final_data[:,-3]], [final_data[:,-1]], axis=0))
             processed_data2 = np.append(processed_data, np.full((processed_data.shape[0],1), time_step).astype(int) , axis=1)
             temp_database = np.append(temp_database, processed_data2, axis=0)
-            x = processed_data[1:,-2].astype(float)/FoilDyn.chord
+            x_data = processed_data[1:,-2].astype(float)/FoilDyn.chord
             wallshear = processed_data[1:,-1].astype(float)
             if np.min(wallshear) < 0 and wallshear[0] > 0 and ct < 4:
                 if ct == 0: 
                     shed_time = time_step
-                    shed_x = x
+                    shed_x = x_data
                     shed_wallshear = wallshear
                     x_wallshear = shed_x[np.argmin(wallshear)]
                     eff_AoA = FoilDyn.alpha_eff[time_step]
