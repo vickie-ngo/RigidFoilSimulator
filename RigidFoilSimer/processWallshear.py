@@ -91,11 +91,17 @@ def wallshearData(Files, FoilDyn, FoilGeo, cutoff =0.2):
     temp_database = np.empty([0,3])
     ct = 0
     file_names = sorted(file_names)
+    last_time_step = int(file_names[-1].split('-')[-1].split('.')[0])
+    if last_time_step > round(last_time_step, -3):
+        start_time_step = round(last_time_step, -3)   
+    else:
+        start_time_step = round(last_time_step, -3) - 1000
+    
     for x in range(len(file_names)):
         file_path = convert_2_txt(data_path+"\\"+file_names[x])
         time_step = int(file_names[x].split('-')[-1].split('.')[0])
         theta = FoilDyn.theta[time_step]
-        if round(theta,3) != 0 and time_step > 2000: # and time_step % 10 == 0:
+        if time_step > start_time_step and round(theta,3) != 0: # and time_step % 10 == 0:
             final_data = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time_step], FoilDyn.h[time_step], cutoff)
             np.savetxt(savePath + str(time_step) + '.txt', final_data[:-1,:], fmt="%s")
             final_data = final_data[1:,:].astype(float)
@@ -110,11 +116,12 @@ def wallshearData(Files, FoilDyn, FoilGeo, cutoff =0.2):
                     shed_x = x
                     shed_wallshear = wallshear
                     x_wallshear = shed_x[np.argmin(wallshear)]
+                    eff_AoA = FoilDyn.alpha_eff[time_step]
                 ct = ct + 1
             elif ct == 4:
                 ct = 10
                 fig, axs = plt.subplots(3)
-                print("Output Results:\nVortex is shed at time step = %s \nVortex Position = %s" % (shed_time,x_wallshear))
+                print("Output Results:\nVortex is shed at time step = %s \nVortex Position = %s \nEffective Angle of Attack = %s" % (shed_time,x_wallshear,eff_AoA))
                 desired_steps = np.unique(temp_database[:,-1]).astype(int)[-9:]
                 temp_set = np.empty([0,3])
                 filtered_data = np.empty([0,3])
