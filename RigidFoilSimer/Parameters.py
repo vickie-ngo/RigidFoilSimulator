@@ -132,7 +132,6 @@ class Dynamics(object):
     def update_totalCycles(self, total_cycles, plot_steps):   
         self.just_steps = int(np.ceil(round(total_cycles/self.freq,6)/self.dt)) 
         self.plot_steps = plot_steps
-<<<<<<< HEAD
         samp = np.array([x for x in range(self.just_steps + self.plot_steps +1)])
         self.time = [round(x*self.dt,5) for x in samp]
         self.h = [self.h0*cos(2*pi*x/steps_per_cycle)-self.h0 for x in samp]
@@ -140,20 +139,6 @@ class Dynamics(object):
         self.alpha_eff = [self.theta[x] - np.arctan(self.h[x]/self.velocity_inf) for x in samp]
         self.h_dot = [2*pi*f*self.h0*cos(2*pi*f*self.time[x]+pi/2) for x in samp]
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
-=======
-        samp = self.just_steps + self.plot_steps +1  #total number of time steps 
-        self.time = [0]*samp
-        self.h = [0]*samp
-        self.theta = [0]*samp
-        for x in range(samp):
-            ti = round(x*self.dt,5)
-            self.time[x] = ti
-            self.h[x] = self.h0*cos(2*pi*x/self.steps_per_cycle)-self.h0
-            self.theta[x] = self.theta0*cos(2*pi*x/self.steps_per_cycle+pi/2)
-            ## These are the heaving and pitching rates
-            #self.h_dot[x] = 2*pi*f*self.h0*cos(2*pi*f*ti+pi/2)
-            #self.theta_dot[x] = 2*pi*f*self.theta0*cos(2*pi*f*ti)
->>>>>>> 802642a35e25c315ea00f38cade11063783471a4
     
     def __repr__(self):
         return "Foil Dynamic Parameters: \n \

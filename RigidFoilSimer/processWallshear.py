@@ -96,20 +96,11 @@ def wallshearData(Files, FoilDyn, FoilGeo, cutoff =0.2):
         start_time_step = round(last_time_step, -3)   
     else:
         start_time_step = round(last_time_step, -3) - 1000
-<<<<<<< HEAD
-    
-    for x in range(len(file_names)):
-        file_path = convert_2_txt(data_path+"\\"+file_names[x])
-        time_step = int(file_names[x].split('-')[-1].split('.')[0])
-        theta = FoilDyn.theta[time_step]
-        if time_step > start_time_step and round(theta,3) != 0: # and time_step % 10 == 0:
-=======
-        
+
     for x in range(len(file_names)):
         file_path = convert_2_txt(data_path+"\\"+file_names[x])
         time_step = int(file_names[x].split('-')[-1].split('.')[0])
         if time_step > start_time_step and round(FoilDyn.theta[time_step],3) != 0: # and time_step % 10 == 0:
->>>>>>> 802642a35e25c315ea00f38cade11063783471a4
             final_data = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time_step], FoilDyn.h[time_step], cutoff)
             np.savetxt(savePath + str(time_step) + '.txt', final_data[:-1,:], fmt="%s")
             final_data = final_data[1:,:].astype(float)
