@@ -67,7 +67,7 @@ def add_data_columns(file_path, chord, theta, h, cutoff):
     file_object.close()
     return final_data
 
-def wallshearData(Files, FoilDyn, FoilGeo, cutoff =0.2):
+def wallshearData(Files, FoilDyn, FoilGeo, cutoff = 0.2):
     """Go into wall shear folder and process raw data"""
     
     data_path = Files.data_path
@@ -78,7 +78,7 @@ def wallshearData(Files, FoilDyn, FoilGeo, cutoff =0.2):
         savePath = Files.org_path + "\\" + FoilGeo.geo_name + "-" + "{:.2f}".format(FoilDyn.reduced_frequency).replace(".","") + "-"
     
     file_names = [f for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))]
-    file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >= 0 or x.find(FoilGeo.geo_name) >= 0), file_names))
+    file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >= 0 or x.find("wss") >= 0), file_names))
 
     if data_path == os.path.dirname(os.path.realpath(__file__)) + r"\Tests\Assets":
         FoilDyn.update_totalCycles(2,0)
@@ -86,9 +86,9 @@ def wallshearData(Files, FoilDyn, FoilGeo, cutoff =0.2):
         for x in modfiles:
             os.remove(data_path+"\\"+x)
         file_names = [f for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))]
-        file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >0 or x.find(FoilGeo.geo_name) >= 0), file_names))
+        file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >0 or x.find("wss") >= 0 or x.find(FoilGeo.geo_name) >= 0), file_names))
     
-    temp_database = np.empty([0,3])
+    temp_database = np.empty([0,4])
     ct = 0
     file_names = sorted(file_names)
     last_time_step = int(file_names[-1].split('-')[-1].split('.')[0])
@@ -98,51 +98,74 @@ def wallshearData(Files, FoilDyn, FoilGeo, cutoff =0.2):
         start_time_step = round(last_time_step, -3) - 1000
 
     for x in range(len(file_names)):
+        if ct == 4 or x == len(file_names)-1:
+            fig, axs = plt.subplots(4)
+            desired_steps = np.unique(temp_database[:,-1]).astype(int)[-9:]
+            temp_set = np.empty([0,4])
+            filtered_data = np.empty([0,4])
+            for step in desired_steps:
+                filtered_data = temp_database[temp_database[:,-1]==step,:]
+                axs[0].plot(filtered_data[:,0]/FoilDyn.chord,filtered_data[:,2], label = step)
+                temp_x = temp_database[temp_database[:, -1] == step,:][np.argmin(temp_database[temp_database[:, -1] == step,2]),0]
+                temp_y = temp_database[temp_database[:, -1] == step,:][np.argmin(temp_database[temp_database[:, -1] == step,2]),1]
+                temp_ws = np.min(temp_database[temp_database[:, -1] == step,2])
+                temp_set = np.append(temp_set, [[step, temp_x, temp_y, temp_ws]], axis=0)
+            axs[1].plot(temp_set[:,0], temp_set[:,3])
+            axs[2].plot(temp_set[:,0], temp_set[:,2]/FoilDyn.chord)
+            axs[0].legend()
+            axs[0].grid()
+            axs[1].grid()
+            axs[2].grid()
+            fig.suptitle(FoilGeo.geo_name + ", k = " + str(FoilDyn.reduced_frequency))
+            axs[0].set(xlabel='x position along the chord, [x/C]', ylabel='Wall Shear')
+            axs[1].set(xlabel='time step [s]', ylabel='Wall Shear')
+            axs[2].set(xlabel='time step [s]', ylabel='x position along the chord, [x/C]')
+            axs[3].plot(shed[:,0].astype(float), tang)
+            axs[3].grid()
+            
+            if Parameters.specialCase() == False:  
+                print("Exit plots to end procedure")
+                plt.draw()   
+            break
+            
         file_path = convert_2_txt(data_path+"\\"+file_names[x])
         time_step = int(file_names[x].split('-')[-1].split('.')[0])
-        if time_step > start_time_step and round(FoilDyn.theta[time_step],3) != 0: # and time_step % 10 == 0:
-            final_data = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time_step], FoilDyn.h[time_step], cutoff)
-            np.savetxt(savePath + str(time_step) + '.txt', final_data[:-1,:], fmt="%s")
+        
+        if time_step > start_time_step and time_step < start_time_step + 1000 and round(FoilDyn.theta[time_step],3) != 0: # and time_step % 10 == 0:
+            final_data = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time_step], FoilDyn.h[time_step], 1)
+            # np.savetxt(savePath + str(time_step) + '.txt', final_data[:-1,:], fmt="%s")
             final_data = final_data[1:,:].astype(float)
-            processed_data = np.transpose(np.append([final_data[:,-3]], [final_data[:,-1]], axis=0))
-            processed_data2 = np.append(processed_data, np.full((processed_data.shape[0],1), time_step).astype(int) , axis=1)
+            processed_data = np.transpose(np.append([final_data[:,-3]], [final_data[:,-2], final_data[:,-1]], axis=0))
+            processed_data2 = np.append(processed_data[processed_data[:,0] <= cutoff*FoilDyn.chord ], np.full((processed_data[processed_data[:,0] <= cutoff*FoilDyn.chord ].shape[0],1), time_step).astype(int) , axis=1)
             temp_database = np.append(temp_database, processed_data2, axis=0)
-            x_data = processed_data[1:,-2].astype(float)/FoilDyn.chord
-            wallshear = processed_data[1:,-1].astype(float)
+            wallshear = processed_data2[1:,-2].astype(float)
+            
             if np.min(wallshear) < 0 and wallshear[0] > 0 and ct < 4:
                 if ct == 0: 
                     shed_time = time_step
-                    shed_x = x_data
+                    shed_x = processed_data2[1:,0].astype(float)[np.argmin(wallshear)]
+                    shed_y = processed_data2[1:,1].astype(float)[np.argmin(wallshear)]
                     shed_wallshear = wallshear
-                    x_wallshear = shed_x[np.argmin(wallshear)]
-                    eff_AoA = FoilDyn.alpha_eff[time_step]
+                    x_wallshear = shed_x/FoilDyn.chord
+                    FoilDyn.theta_inf_hdot = np.arctan(-FoilDyn.h_dot[time_step]/FoilDyn.velocity_inf)
+                    eff_AoA = FoilDyn.theta[time_step] - FoilDyn.theta_inf_hdot
+                    shed = processed_data[:,:2].astype(float)
+                    theta_tp = [FoilGeo.find_tangent(x[0], x[1]) for x in shed]
+                    tang = FoilDyn.theta[time_step] - [FoilGeo.find_tangent(x[0], x[1]) for x in shed]
+                    FoilDyn.theta_t = FoilDyn.theta[time_step] - FoilGeo.find_tangent(shed_x,shed_y)
+                    FoilGeo.find_r(shed_x, shed_y)
+                    FoilDyn.theta_p_r2 = FoilDyn.theta[time_step] + FoilGeo.theta_r2
+                    FoilDyn.u_thetadot = FoilGeo.r2*FoilDyn.theta_dot[time_step]
+                    # u_thetadot is the pitching velocity at the vortex shed location [magnitude, x, y]
+                    FoilDyn.u_thetadot = [FoilDyn.u_thetadot, FoilDyn.u_thetadot*np.sin(FoilDyn.theta_p_r2), FoilDyn.u_thetadot*np.cos(FoilDyn.theta_p_r2)]
+                    FoilDyn.theta_inf_thetadot = np.arctan(-FoilDyn.u_thetadot[2]/(FoilDyn.velocity_inf - FoilDyn.u_thetadot[1]))
+                    FoilDyn.theta_inf_hdot_thetadot = np.arctan(-(FoilDyn.u_thetadot[2]+FoilDyn.h_dot[time_step])/(FoilDyn.velocity_inf - FoilDyn.u_thetadot[1]))
+                    print('\n' + Files.project_name)
+                    print("\nOutput Results:\n\tVortex is shed at time step = %s\n\tVortex Position = %s" % (shed_time,x_wallshear))
+                    print('\nTheta values:\n\tPitching Angle = %s\n\tTangent Angle = %s\n\tInf+h_dot = %s\n\tInf+theta_dot = %s\n\tInf+h_dot+theta_dot = %s' % (FoilDyn.theta[time_step],FoilDyn.theta_t,FoilDyn.theta_inf_hdot,FoilDyn.theta_inf_thetadot,FoilDyn.theta_inf_hdot_thetadot))
+                    print('\nr values:\n\tr1 = %s\n\tr2 = %s' % (FoilGeo.r1, FoilGeo.r2))
                 ct = ct + 1
-            elif ct == 4:
-                ct = 10
-                fig, axs = plt.subplots(3)
-                print("Output Results:\nVortex is shed at time step = %s \nVortex Position = %s \nEffective Angle of Attack = %s" % (shed_time,x_wallshear,eff_AoA))
-                desired_steps = np.unique(temp_database[:,-1]).astype(int)[-9:]
-                temp_set = np.empty([0,3])
-                filtered_data = np.empty([0,3])
-                for step in desired_steps:
-                    filtered_data = temp_database[temp_database[:,-1]==step,:]
-                    axs[0].plot(filtered_data[:,0]/FoilDyn.chord,filtered_data[:,1], label = step)
-                    temp_x = temp_database[temp_database[:, -1] == step,:][np.argmin(temp_database[temp_database[:, -1] == step,1]),0]
-                    temp_ws = np.min(temp_database[temp_database[:, -1] == step,1])
-                    temp_set = np.append(temp_set, [[step, temp_x, temp_ws]], axis=0)
-                axs[1].plot(temp_set[:,0], temp_set[:,2])
-                axs[2].plot(temp_set[:,0], temp_set[:,1]/FoilDyn.chord)
-                axs[0].legend()
-                axs[0].grid()
-                axs[1].grid()
-                axs[2].grid()
-                fig.suptitle("k = " + str(FoilDyn.reduced_frequency))
-                axs[0].set(xlabel='x position along the chord, [x/C]', ylabel='Wall Shear')
-                axs[1].set(xlabel='time step [s]', ylabel='Wall Shear')
-                axs[2].set(xlabel='time step [s]', ylabel='x position along the chord, [x/C]')
-                if Parameters.specialCase() == False:  
-                    print("Exit plots to end procedure")
-                    plt.show()
+
     try:
         shed_time
     except NameError:

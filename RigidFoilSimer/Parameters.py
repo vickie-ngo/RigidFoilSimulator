@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 from scipy.optimize import fsolve
 from sympy import symbols, Eq, solve
 import sys, os
@@ -21,6 +22,12 @@ class FilePath(object):
         self.wbjnFluent_path = self.project_path + "_genFileFluent.wbjn"
         if 'google' in self.project_path.lower():
             self.data_path = self.project_path
+        elif 'box' in self.project_path.lower():
+            for r, d, f in os.walk(self.project_path):
+                for file in d:
+                    if '_files' in file:
+                        self.data_path = self.project_path + "\\" + file + r"\dp0\FFF\Fluent"
+                    break        
         elif 'none' in self.project_name.lower():
             self.data_path = self.folder_path
         else:
@@ -69,31 +76,72 @@ class Geometry(object):
         self.trailing_ellipse_origin = chord/2 - self.trailing_ellipse_x
         self.chord = chord
         
-        ## These equations are necessary if you decide to switch to SpaceClaim Geometry Scripting. 
-        ## These are not required for parameterization
-        # #Solve for tangent lines to the leading and trailing edge ellipses
-        # m, k = symbols('m k')
-        # eq1 = Eq((self.leading_ellipse_x**2*k*m - self.leading_ellipse_origin*self.leading_ellipse_y**2)**2 - (self.leading_ellipse_y**2+self.leading_ellipse_x**2*m**2)*(self.leading_ellipse_origin**2*self.leading_ellipse_y**2+self.leading_ellipse_x**2*k**2-self.leading_ellipse_y**2*self.leading_ellipse_x**2),0)
-        # eq2 = Eq((self.trailing_ellipse_x**2*k*m - self.trailing_ellipse_origin*self.trailing_ellipse_y**2)**2 - (self.trailing_ellipse_y**2+self.trailing_ellipse_x**2*m**2)*(self.trailing_ellipse_origin**2*self.trailing_ellipse_y**2+self.trailing_ellipse_x**2*k**2-self.trailing_ellipse_y**2*self.trailing_ellipse_x**2),0)
-        # sol_dict = solve((eq1,eq2),(m,k))
+        # These equations are necessary if you decide to switch to SpaceClaim Geometry Scripting. 
+        # These are not required for parameterization
+        #Solve for tangent lines to the leading and trailing edge ellipses
+        m, k = symbols('m k')
+        eq1 = Eq((self.leading_ellipse_x**2*k*m - self.leading_ellipse_origin*self.leading_ellipse_y**2)**2 - (self.leading_ellipse_y**2+self.leading_ellipse_x**2*m**2)*(self.leading_ellipse_origin**2*self.leading_ellipse_y**2+self.leading_ellipse_x**2*k**2-self.leading_ellipse_y**2*self.leading_ellipse_x**2),0)
+        eq2 = Eq((self.trailing_ellipse_x**2*k*m - self.trailing_ellipse_origin*self.trailing_ellipse_y**2)**2 - (self.trailing_ellipse_y**2+self.trailing_ellipse_x**2*m**2)*(self.trailing_ellipse_origin**2*self.trailing_ellipse_y**2+self.trailing_ellipse_x**2*k**2-self.trailing_ellipse_y**2*self.trailing_ellipse_x**2),0)
+        sol_dict = solve((eq1,eq2),(m,k))
+  
+        # Define the equation for tangent lines
+        x, y = symbols('x y')
+        eqT = Eq(sol_dict[1][0]*x+sol_dict[1][1]-y,0)
         
-        # # Define the equation for tangent lines
-        # x, y = symbols('x y')
-        # eqT = Eq(sol_dict[1][0]*x+sol_dict[1][1]-y,0)
+        # Solve for the intersection point at the leading edge ellipse
+        eqE = Eq((x-self.leading_ellipse_origin)**2/self.leading_ellipse_x**2 + y**2/self.leading_ellipse_y**2 - 1,0)
+        sol_xy = solve((eqT,eqE),(x,y))
+        self.leading_ellipse_xT = abs(sol_xy[0][0])
+        self.leading_ellipse_yT = abs(sol_xy[0][1])
         
-        # # Solve for the intersection point at the leading edge ellipse
-        # eqE = Eq((x-self.leading_ellipse_origin)**2/self.leading_ellipse_x**2 + y**2/self.leading_ellipse_y**2 - 1,0)
-        # sol_xy = solve((eqT,eqE),(x,y))
-        # self.leading_ellipse_xT = abs(sol_xy[0][0])
-        # self.leading_ellipse_yT = abs(sol_xy[0][1])
+        # Solve for the intersection point at the trailing edge ellipse
+        eqE = Eq((x-self.trailing_ellipse_origin)**2/self.trailing_ellipse_x**2 + y**2/self.trailing_ellipse_y**2 - 1,0)
+        sol_xy = solve((eqT,eqE),(x,y))
+        self.trailing_ellipse_xT = abs(sol_xy[0][0])
+        self.trailing_ellipse_yT = abs(sol_xy[0][1])
+
+        # Solve for tangent angle
+        # Jordan is awesome :)
+        if not self.leading_ellipse_yT - self.trailing_ellipse_yT == 0:
+            self.tangentline_angle = np.arctan(float((self.leading_ellipse_yT-self.trailing_ellipse_yT)/(self.trailing_ellipse_xT+self.leading_ellipse_xT)))
+        else:
+            self.tangentline_angle = 0
         
-        # # Solve for the intersection point at the trailing edge ellipse
-        # eqE = Eq((x-self.trailing_ellipse_origin)**2/self.trailing_ellipse_x**2 + y**2/self.trailing_ellipse_y**2 - 1,0)
-        # sol_xy = solve((eqT,eqE),(x,y))
-        # self.trailing_ellipse_xT = abs(sol_xy[0][0])
-        # self.trailing_ellipse_yT = abs(sol_xy[0][1])
+    def find_tangent(self, shed_x, shed_y):
+        x = shed_x-self.chord/2
+        if x < -self.leading_ellipse_xT:
+            self.tangent_angle = np.arctan(-float((self.leading_ellipse_y**2*(x-self.leading_ellipse_origin))/(self.leading_ellipse_x**2*shed_y)))
+        elif x < self.trailing_ellipse_xT:
+            self.tangent_angle = self.tangentline_angle
+        else:
+            self.tangent_angle = np.arctan(-float((self.trailing_ellipse_y**2*(x-self.trailing_ellipse_origin))/(self.trailing_ellipse_x**2*shed_y)))
+        return self.tangent_angle
+    
+    def find_r(self, shed_x, shed_y):
+        x = shed_x-self.chord/2
+        self.r1 = np.sqrt((self.leading_ellipse_origin - x)**2 + (shed_y)**2)*shed_y/abs(shed_y)
+        self.r2 = np.sqrt(x**2 + shed_y**2)*shed_y/abs(shed_y)
+        self.theta_r2 = np.tan(-shed_y/x)
     
     def __repr__(self):
+        import numpy.random as rnd
+        from matplotlib.patches import Ellipse
+
+        ells = [Ellipse(xy=np.array([self.leading_ellipse_origin, 0]), width=2*self.leading_ellipse_x, height=2*self.leading_ellipse_y, angle=0),
+                Ellipse(xy=np.array([self.trailing_ellipse_origin, 0]), width=2*self.trailing_ellipse_x, height=2*self.trailing_ellipse_y, angle=0)]
+        fig = plt.figure(0)
+        ax = fig.add_subplot(111, aspect='equal')
+        for e in ells:
+            ax.add_artist(e)
+            e.set_clip_box(ax.bbox)
+            e.set_alpha(rnd.rand())
+            e.set_facecolor(rnd.rand(3))
+        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT])    
+        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT])    
+        ax.set_xlim(-self.chord/2, self.chord/2)
+        ax.set_ylim(-self.chord/2, self.chord/2)
+        plt.show()
+        ax.grid()
         return "Foil Geometry Parameters [M]: \n \
         chord length : \t\t % s \n \
         leading edge height : \t\t % s \t\t\n \
@@ -125,9 +173,26 @@ class Dynamics(object):
         self.time = [round(x*self.dt,5) for x in samp]
         self.h = [self.h0*cos(2*pi*x/steps_per_cycle)-self.h0 for x in samp]
         self.theta = [self.theta0*cos(2*pi*x/steps_per_cycle+pi/2) for x in samp]
-        self.alpha_eff = [self.theta[x] - np.arctan(self.h[x]/self.velocity_inf) for x in samp]
         self.h_dot = [2*pi*f*self.h0*cos(2*pi*f*self.time[x]+pi/2) for x in samp]
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
+        self.alpha_eff = [self.theta[x] - np.arctan(self.h_dot[x]/self.velocity_inf) for x in samp]
+        
+        # fig, ax1 = plt.subplots()
+        # color = 'tab:red'
+        # ax1.set_xlabel('time (s)')
+        # ax1.set_ylabel('heave position', color=color)
+        # ax1.plot(self.time, self.h, color=color)
+        # ax1.tick_params(axis='y', labelcolor=color)
+
+        # ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+        # color = 'tab:blue'
+        # ax2.set_ylabel('pitching angle', color=color)  # we already handled the x-label with ax1
+        # ax2.plot(self.time, self.theta, color=color)
+        # ax2.tick_params(axis='y', labelcolor=color)
+
+        # fig.tight_layout()  # otherwise the right y-label is slightly clipped
+        # plt.show()
     
     def update_totalCycles(self, total_cycles, plot_steps):   
         self.just_steps = int(np.ceil(round(total_cycles/self.freq,6)/self.dt)) 
@@ -136,10 +201,9 @@ class Dynamics(object):
         self.time = [round(x*self.dt,5) for x in samp]
         self.h = [self.h0*cos(2*pi*x/steps_per_cycle)-self.h0 for x in samp]
         self.theta = [self.theta0*cos(2*pi*x/steps_per_cycle+pi/2) for x in samp]
-        self.alpha_eff = [self.theta[x] - np.arctan(self.h[x]/self.velocity_inf) for x in samp]
         self.h_dot = [2*pi*f*self.h0*cos(2*pi*f*self.time[x]+pi/2) for x in samp]
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
-    
+
     def __repr__(self):
         return "Foil Dynamic Parameters: \n \
         reduced frequency [-]: \t % s \n \
