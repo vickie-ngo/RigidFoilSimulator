@@ -22,12 +22,12 @@ class FilePath(object):
         self.wbjnFluent_path = self.project_path + "_genFileFluent.wbjn"
         if 'google' in self.project_path.lower():
             self.data_path = self.project_path
-        elif 'box' in self.project_path.lower():
-            for r, d, f in os.walk(self.project_path):
-                for file in d:
-                    if '_files' in file:
-                        self.data_path = self.project_path + "\\" + file + r"\dp0\FFF\Fluent"
-                    break        
+        # elif 'box' in self.project_path.lower():
+            # for r, d, f in os.walk(self.project_path):
+                # for file in d:
+                    # if '_files' in file:
+                        # self.data_path = self.project_path + "\\" + file + r"\dp0\FFF\Fluent"
+                    # break        
         elif 'none' in self.project_name.lower():
             self.data_path = self.folder_path
         else:
@@ -124,24 +124,24 @@ class Geometry(object):
         self.theta_r2 = np.tan(-shed_y/x)
     
     def __repr__(self):
-        import numpy.random as rnd
-        from matplotlib.patches import Ellipse
+        # import numpy.random as rnd
+        # from matplotlib.patches import Ellipse
 
-        ells = [Ellipse(xy=np.array([self.leading_ellipse_origin, 0]), width=2*self.leading_ellipse_x, height=2*self.leading_ellipse_y, angle=0),
-                Ellipse(xy=np.array([self.trailing_ellipse_origin, 0]), width=2*self.trailing_ellipse_x, height=2*self.trailing_ellipse_y, angle=0)]
-        fig = plt.figure(0)
-        ax = fig.add_subplot(111, aspect='equal')
-        for e in ells:
-            ax.add_artist(e)
-            e.set_clip_box(ax.bbox)
-            e.set_alpha(rnd.rand())
-            e.set_facecolor(rnd.rand(3))
-        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT])    
-        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT])    
-        ax.set_xlim(-self.chord/2, self.chord/2)
-        ax.set_ylim(-self.chord/2, self.chord/2)
-        plt.show()
-        ax.grid()
+        # ells = [Ellipse(xy=np.array([self.leading_ellipse_origin, 0]), width=2*self.leading_ellipse_x, height=2*self.leading_ellipse_y, angle=0),
+                # Ellipse(xy=np.array([self.trailing_ellipse_origin, 0]), width=2*self.trailing_ellipse_x, height=2*self.trailing_ellipse_y, angle=0)]
+        # fig = plt.figure(0)
+        # ax = fig.add_subplot(111, aspect='equal')
+        # for e in ells:
+            # ax.add_artist(e)
+            # e.set_clip_box(ax.bbox)
+            # e.set_alpha(rnd.rand())
+            # e.set_facecolor(rnd.rand(3))
+        # ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT])    
+        # ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT])    
+        # ax.set_xlim(-self.chord/2, self.chord/2)
+        # ax.set_ylim(-self.chord/2, self.chord/2)
+        # plt.show()
+        # ax.grid()
         return "Foil Geometry Parameters [M]: \n \
         chord length : \t\t % s \n \
         leading edge height : \t\t % s \t\t\n \
