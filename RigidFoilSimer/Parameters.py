@@ -103,19 +103,22 @@ class Geometry(object):
         # Solve for tangent angle
         # Jordan is awesome :)
         if not self.leading_ellipse_yT - self.trailing_ellipse_yT == 0:
-            self.tangentline_angle = np.arctan(float((self.leading_ellipse_yT-self.trailing_ellipse_yT)/(self.trailing_ellipse_xT+self.leading_ellipse_xT)))
+            self.tangentline_angle = np.arctan(float((self.trailing_ellipse_yT - self.leading_ellipse_yT)/(self.trailing_ellipse_xT+self.leading_ellipse_xT)))
         else:
             self.tangentline_angle = 0
         
-    def find_tangent(self, shed_x, shed_y):
+    def find_theta_t(self, shed_x, shed_y):
+        ## finds the tangent angle along the foil at (shed_x,shed_y) relative to the chord line
         x = shed_x-self.chord/2
-        if x < -self.leading_ellipse_xT:
-            self.tangent_angle = np.arctan(-float((self.leading_ellipse_y**2*(x-self.leading_ellipse_origin))/(self.leading_ellipse_x**2*shed_y)))
-        elif x < self.trailing_ellipse_xT:
-            self.tangent_angle = self.tangentline_angle
+        if x <= -self.leading_ellipse_xT:
+            self.theta_t = np.arctan(-float((self.leading_ellipse_y**2*(x-self.leading_ellipse_origin))/(self.leading_ellipse_x**2*shed_y)))
+        elif x <= self.trailing_ellipse_xT:
+            self.theta_t = self.tangentline_angle
+            if shed_y < 0:
+                self.theta_t = -self.theta_t
         else:
-            self.tangent_angle = np.arctan(-float((self.trailing_ellipse_y**2*(x-self.trailing_ellipse_origin))/(self.trailing_ellipse_x**2*shed_y)))
-        return self.tangent_angle
+            self.theta_t = np.arctan(-float((self.trailing_ellipse_y**2*(x-self.trailing_ellipse_origin))/(self.trailing_ellipse_x**2*shed_y)))
+        return self.theta_t
     
     def find_r(self, shed_x, shed_y):
         x = shed_x-self.chord/2
@@ -124,24 +127,24 @@ class Geometry(object):
         self.theta_r2 = np.tan(-shed_y/x)
     
     def __repr__(self):
-        # import numpy.random as rnd
-        # from matplotlib.patches import Ellipse
+        import numpy.random as rnd
+        from matplotlib.patches import Ellipse
 
-        # ells = [Ellipse(xy=np.array([self.leading_ellipse_origin, 0]), width=2*self.leading_ellipse_x, height=2*self.leading_ellipse_y, angle=0),
-                # Ellipse(xy=np.array([self.trailing_ellipse_origin, 0]), width=2*self.trailing_ellipse_x, height=2*self.trailing_ellipse_y, angle=0)]
-        # fig = plt.figure(0)
-        # ax = fig.add_subplot(111, aspect='equal')
-        # for e in ells:
-            # ax.add_artist(e)
-            # e.set_clip_box(ax.bbox)
-            # e.set_alpha(rnd.rand())
-            # e.set_facecolor(rnd.rand(3))
-        # ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT])    
-        # ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT])    
-        # ax.set_xlim(-self.chord/2, self.chord/2)
-        # ax.set_ylim(-self.chord/2, self.chord/2)
-        # plt.show()
-        # ax.grid()
+        ells = [Ellipse(xy=np.array([self.leading_ellipse_origin, 0]), width=2*self.leading_ellipse_x, height=2*self.leading_ellipse_y, angle=0),
+                Ellipse(xy=np.array([self.trailing_ellipse_origin, 0]), width=2*self.trailing_ellipse_x, height=2*self.trailing_ellipse_y, angle=0)]
+        fig = plt.figure(0)
+        ax = fig.add_subplot(111, aspect='equal')
+        for e in ells:
+            ax.add_artist(e)
+            e.set_clip_box(ax.bbox)
+            e.set_alpha(rnd.rand())
+            e.set_facecolor(rnd.rand(3))
+        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT])    
+        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT])    
+        ax.set_xlim(-self.chord/2, self.chord/2)
+        ax.set_ylim(-self.chord/2, self.chord/2)
+        plt.show()
+        ax.grid()
         return "Foil Geometry Parameters [M]: \n \
         chord length : \t\t % s \n \
         leading edge height : \t\t % s \t\t\n \
