@@ -7,7 +7,7 @@ def yesNo(prompt):
     if Parameters.query_yes_no(prompt) == False:
         sys.exit("Done.")
 
-def main(FilePath, FoilGeo, FoilDyn):
+def main(FilePath, FoilGeo, FoilDyn, axs, x):
     """Runs simulation from reading in input form to processing end data"""
   
     # ## Generate C File
@@ -22,4 +22,4 @@ def main(FilePath, FoilGeo, FoilDyn):
         # yesNo("Project with Mesh file has been generated. Begin simulation? (This will take a long time)")
         # talkToAnsys.run_wbjn(FilePath.WB_path, FilePath.wbjnFluent_path, '-B')
 
-    processWallshear.wallshearData(FilePath, FoilDyn, FoilGeo)
+    processWallshear.wallshearData(FilePath, FoilDyn, FoilGeo, axs, x)

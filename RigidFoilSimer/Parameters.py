@@ -21,13 +21,7 @@ class FilePath(object):
         self.wbjnMesh_path = self.project_path + "_genFileGeomMesh.wbjn"
         self.wbjnFluent_path = self.project_path + "_genFileFluent.wbjn"
         if 'google' in self.project_path.lower():
-            self.data_path = self.project_path
-        # elif 'box' in self.project_path.lower():
-            # for r, d, f in os.walk(self.project_path):
-                # for file in d:
-                    # if '_files' in file:
-                        # self.data_path = self.project_path + "\\" + file + r"\dp0\FFF\Fluent"
-                    # break        
+            self.data_path = self.project_path     
         elif 'none' in self.project_name.lower():
             self.data_path = self.folder_path
         else:
@@ -137,21 +131,26 @@ class Geometry(object):
         for e in ells:
             ax.add_artist(e)
             e.set_clip_box(ax.bbox)
-            e.set_alpha(rnd.rand())
-            e.set_facecolor(rnd.rand(3))
-        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT])    
-        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT])    
+            e.set_alpha(1)
+            e.set_edgecolor('tab:blue')
+            e.set_facecolor('none')
+        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT], color='tab:blue')    
+        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT], color='tab:blue')    
         ax.set_xlim(-self.chord/2, self.chord/2)
         ax.set_ylim(-self.chord/2, self.chord/2)
+        plt.axis('off')
         plt.show()
-        ax.grid()
         return "Foil Geometry Parameters [M]: \n \
-        chord length : \t\t % s \n \
-        leading edge height : \t\t % s \t\t\n \
-        leading edge width : \t\t % s \t\t\n \
-        trailing edge height : \t % s \t\t\n \
-        trailing edge width : \t\t % s \t\t\n \
-        " % (self.chord, self.leading_ellipse_y, self.leading_ellipse_x, self.trailing_ellipse_y, self.trailing_ellipse_x)
+        chord length : \t % s \n \
+        LE height : \t\t % s \t\t\n \
+        LE width : \t\t % s \t\t\n \
+        LE Tangent y : \t % s \t\t\n \
+        LE Tangent x : \t % s \t\t\n \
+        TE height : \t\t % s \t\t\n \
+        TE width : \t\t % s \t\t\n \
+        TE Tangent y : \t % s \t\t\n \
+        TE Tangent x : \t % s \t\t\n \
+        " % (self.chord, self.leading_ellipse_y, self.leading_ellipse_x, self.leading_ellipse_yT, -self.leading_ellipse_xT, self.trailing_ellipse_y, self.trailing_ellipse_x, self.trailing_ellipse_yT, self.trailing_ellipse_xT)
 
       
 class Dynamics(object):
@@ -179,23 +178,6 @@ class Dynamics(object):
         self.h_dot = [2*pi*f*self.h0*cos(2*pi*f*self.time[x]+pi/2) for x in samp]
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
         self.alpha_eff = [self.theta[x] - np.arctan(self.h_dot[x]/self.velocity_inf) for x in samp]
-        
-        # fig, ax1 = plt.subplots()
-        # color = 'tab:red'
-        # ax1.set_xlabel('time (s)')
-        # ax1.set_ylabel('heave position', color=color)
-        # ax1.plot(self.time, self.h, color=color)
-        # ax1.tick_params(axis='y', labelcolor=color)
-
-        # ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-
-        # color = 'tab:blue'
-        # ax2.set_ylabel('pitching angle', color=color)  # we already handled the x-label with ax1
-        # ax2.plot(self.time, self.theta, color=color)
-        # ax2.tick_params(axis='y', labelcolor=color)
-
-        # fig.tight_layout()  # otherwise the right y-label is slightly clipped
-        # plt.show()
     
     def update_totalCycles(self, total_cycles, plot_steps):   
         self.just_steps = int(np.ceil(round(total_cycles/self.freq,6)/self.dt)) 
@@ -208,6 +190,23 @@ class Dynamics(object):
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
 
     def __repr__(self):
+        fig, ax1 = plt.subplots()
+        color = 'tab:red'
+        ax1.set_xlabel('Cycles [-]', fontsize=18)
+        ax1.set_ylabel('Heave Position [m]', color=color, fontsize=18)
+        ax1.plot(np.asarray(self.time)/(1/np.asarray(self.freq)), self.h, color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+        color = 'tab:blue'
+        ax2.set_ylabel('Pitching Angle [rad]', color=color, fontsize=18)  # we already handled the x-label with ax1
+        ax2.plot(np.asarray(self.time)/(1/np.asarray(self.freq)), self.theta, '--', color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+        plt.title('Heaving and Pitching Profiles Across 3 Cycles', fontsize=18)
+        fig.tight_layout()  # otherwise the right y-label is slightly clipped
+        plt.show()
+        
         return "Foil Dynamic Parameters: \n \
         reduced frequency [-]: \t % s \n \
         chord length [M]: \t\t % s \n \
