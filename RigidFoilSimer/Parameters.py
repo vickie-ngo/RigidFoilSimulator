@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 from scipy.optimize import fsolve
 from sympy import symbols, Eq, solve
+import pickle
 import sys, os
 import shutil
 import __main__
@@ -178,6 +179,7 @@ class Dynamics(object):
         self.h_dot = [2*pi*f*self.h0*cos(2*pi*f*self.time[x]+pi/2) for x in samp]
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
         self.alpha_eff = [self.theta[x] - np.arctan(self.h_dot[x]/self.velocity_inf) for x in samp]
+        self.relations = {}
     
     def update_totalCycles(self, total_cycles, plot_steps):   
         self.just_steps = int(np.ceil(round(total_cycles/self.freq,6)/self.dt)) 
@@ -188,6 +190,15 @@ class Dynamics(object):
         self.theta = [self.theta0*cos(2*pi*x/steps_per_cycle+pi/2) for x in samp]
         self.h_dot = [2*pi*f*self.h0*cos(2*pi*f*self.time[x]+pi/2) for x in samp]
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
+        
+    def e_theta(self, timestep):
+        return self.theta0*cos(2*pi*timestep/self.steps_per_cycle+pi/2)
+        
+    def e_h_dot(self, timestep):
+        return 2*pi*self.freq*self.h0*cos(2*pi*self.freq*timestep*self.dt+pi/2)
+    
+    def e_theta_dot(self, timestep):
+        return 2*pi*self.freq*self.theta0*cos(2*pi*self.freq*timestep*self.dt)
 
     def __repr__(self):
         fig, ax1 = plt.subplots()
@@ -218,6 +229,27 @@ class Dynamics(object):
         fluid density [kg/m^3]: \t %s \n \
         " % (self.reduced_frequency, self.chord, self.freq , self.h0, self.theta0, self.steps_per_cycle, self.total_cycles, self.rho)
 
+def relation_eqns(FoilDyn, FoilGeo, term, time_step, xy):
+    time = (time_step % FoilDyn.steps_per_cycle)/ FoilDyn.steps_per_cycle
+    FoilDyn.theta_inf_hdot = np.arctan(-FoilDyn.e_h_dot(time_step)/FoilDyn.velocity_inf)
+    xC = xy[0]/FoilDyn.chord
+    eff_AoA = FoilDyn.e_theta(time_step) - FoilDyn.theta_inf_hdot
+    FoilDyn.theta_t  = FoilGeo.find_theta_t(xy[0], xy[1])
+    FoilDyn.theta_txy = FoilDyn.e_theta(time_step) - FoilDyn.theta_t
+    FoilGeo.find_r(xy[0], xy[1])
+    FoilDyn.theta_p_r2 = FoilDyn.e_theta(time_step) + FoilGeo.theta_r2
+    FoilDyn.u_thetadot = FoilGeo.r2*FoilDyn.e_theta_dot(time_step)
+    # u_thetadot is the pitching velocity at the vortex shed location [magnitude, x, y]
+    FoilDyn.u_thetadot = [FoilDyn.u_thetadot, FoilDyn.u_thetadot*np.sin(FoilDyn.theta_p_r2), FoilDyn.u_thetadot*np.cos(FoilDyn.theta_p_r2)]
+    FoilDyn.theta_inf_thetadot = np.arctan(-FoilDyn.u_thetadot[2]/(FoilDyn.velocity_inf - FoilDyn.u_thetadot[1]))
+    FoilDyn.theta_inf_hdot_thetadot = np.arctan(-(FoilDyn.u_thetadot[2]+FoilDyn.e_h_dot(time_step))/(FoilDyn.velocity_inf - FoilDyn.u_thetadot[1]))
+    Alpha_eff = FoilDyn.e_theta(time_step)-FoilDyn.theta_inf_hdot
+    Alpha_inf_hdot =  FoilDyn.theta_txy-FoilDyn.theta_inf_hdot
+    Alpha_inf_thetadot = FoilDyn.theta_txy-FoilDyn.theta_inf_thetadot
+    Alpha_inf_hdot_thetadot = FoilDyn.theta_txy-FoilDyn.theta_inf_hdot_thetadot
+    FoilDyn.relations = ['_Time_(t/T)','_Position_Along_Chord_(x/C)','_Pitching_Angle_(rad)','_Tangent_Angle_(rad)','_Theta_inf_+_hdot_(rad)','_Theta_inf_+_thetadot_(rad)','_Theta_inf_+_hdot_+_thetadot_(rad)','_Alpha_eff','_Alpha_inf_+_hdot','_Alpha_inf_+_thetadot','_Alpha_inf_+_hdot_+_thetadot','_r1','_r2']
+    FoilDyn.relations = np.vstack(([term + headers for headers in FoilDyn.relations], np.array([time, xC, FoilDyn.e_theta(time_step), FoilDyn.theta_txy, FoilDyn.theta_inf_hdot, FoilDyn.theta_inf_thetadot, FoilDyn.theta_inf_hdot_thetadot, Alpha_eff, Alpha_inf_hdot, Alpha_inf_thetadot, Alpha_inf_hdot_thetadot, FoilGeo.r1, FoilGeo.r2])))
+    return FoilDyn.relations  
 
 def query_yes_no(question, default=None):
     """Ask a yes/no question via input() and return their answer.
