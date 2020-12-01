@@ -36,7 +36,7 @@ def write2file(inputList, outputFile):
 
 def directory_Request(FilePath, dirReq):
     if dirReq == 0:
-        Folder_Path = Parameters.path_check(FilePath.folder_path, "\nStore simulation files to %s?\nA) Yes, use/create the folder and save to it \nB) No, I want to specify a different folder directory \nC) No, I want to cancel this process\nPick an answer of A, B, or C: ")
+        Folder_Path = Parameters.path_check(FilePath.folder_path, "\nStore simulation files to %s?\nA) Yes, use/create the folder and save to it \nB) No, I want to specify a different folder directory \nC) No, I want to cancel this process\nPick an answer of A, B, or C: ", 0)
         FilePath.newFolderPath(Folder_Path)
    
 def run_wbjn(WB_path, wbjn_path, method):
@@ -76,8 +76,8 @@ def generateFluent_wbjn(FilePath, FoilDyn, dirReq = 0):
         ASCII = 1
     else:
         ASCII = 0
-    file_item = np.array(['InputFile', '_xVelocity_','UDF_C_File','_chordLength_', '_wallShearFileName_', '_stepSize_', '_totalSteps_','_totalStepsPlots_', '_ASCII_'])
-    file_replace = np.array([(FilePath.project_path + '.wbpj').replace("\\","/"), FoilDyn.velocity_inf, (FilePath.folder_path + "\\modRigidPlateFile.c").replace("\\","/"), FoilDyn.chord, str(FoilDyn.reduced_frequency).replace(".","") + '-wallshear', FoilDyn.dt, FoilDyn.just_steps, FoilDyn.plot_steps, ASCII])
+    file_item = np.array(['InputFile', '_xVelocity_','UDF_C_File','_chordLength_', '_foilFileName_', '_spatialFileName_', '_stepSize_', '_totalSteps_','_totalStepsPlots_', '_ASCII_'])
+    file_replace = np.array([(FilePath.project_path + '.wbpj').replace("\\","/"), FoilDyn.velocity_inf, (FilePath.data_path + "\\modRigidPlateFile.c").replace("\\","/"), FoilDyn.chord, str(FoilDyn.reduced_frequency).replace(".","") + '-FoilData', str(FoilDyn.reduced_frequency).replace(".","") + '-SpaceData', FoilDyn.dt, FoilDyn.just_steps, FoilDyn.plot_steps, ASCII])
    
     for param in range(len(file_item)):
         FluentGen_file = [w.replace(file_item[param], file_replace[param]) for w in FluentGen_file]

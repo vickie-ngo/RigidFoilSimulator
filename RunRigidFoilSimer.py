@@ -5,4 +5,4 @@ from RigidFoilSimer import RigidFoilSimer
 FilePaths = Parameters.FilePath("C:/Users/vicki/Desktop","githubVersion")
 FoilGeo = Parameters.Geometry()
 FoilDyn = Parameters.Dynamics()
-RigidFoilSimer.main(FilePaths, FoilGeo, FoilDyn)
+RigidFoilSimer.main(FilePaths, FoilDyn, FoilGeo)

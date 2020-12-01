@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 from scipy.optimize import fsolve
 from sympy import symbols, Eq, solve
+import pickle
 import sys, os
 import shutil
 import __main__
@@ -21,13 +22,7 @@ class FilePath(object):
         self.wbjnMesh_path = self.project_path + "_genFileGeomMesh.wbjn"
         self.wbjnFluent_path = self.project_path + "_genFileFluent.wbjn"
         if 'google' in self.project_path.lower():
-            self.data_path = self.project_path
-        # elif 'box' in self.project_path.lower():
-            # for r, d, f in os.walk(self.project_path):
-                # for file in d:
-                    # if '_files' in file:
-                        # self.data_path = self.project_path + "\\" + file + r"\dp0\FFF\Fluent"
-                    # break        
+            self.data_path = self.project_path     
         elif 'none' in self.project_name.lower():
             self.data_path = self.folder_path
         else:
@@ -47,7 +42,7 @@ class FilePath(object):
     def newFolderPath(self, folder_path):
         self.folder_path = folder_path.replace("/","\\")
         self.project_path = (self.folder_path + "\\" + self.project_name).replace("/","\\")
-        self.wbjnMesh_path = (self.project_path + "_genFileGeomMesh.wbjn").replace("\\","/")
+        self.wbjnMesh_path = (self.project_path + "_genFileGeomMesh.wbjn").replace("/","\\")
         self.wbjnFluent_path = self.project_path + "_genFileFluent.wbjn"
         if not self.data_path == os.path.dirname(os.path.realpath(__file__)) + r"\Tests\Assets":
             self.data_path =  self.project_path + r"_files\dp0\FFF\Fluent"
@@ -103,19 +98,22 @@ class Geometry(object):
         # Solve for tangent angle
         # Jordan is awesome :)
         if not self.leading_ellipse_yT - self.trailing_ellipse_yT == 0:
-            self.tangentline_angle = np.arctan(float((self.leading_ellipse_yT-self.trailing_ellipse_yT)/(self.trailing_ellipse_xT+self.leading_ellipse_xT)))
+            self.tangentline_angle = np.arctan(float((self.trailing_ellipse_yT - self.leading_ellipse_yT)/(self.trailing_ellipse_xT+self.leading_ellipse_xT)))
         else:
             self.tangentline_angle = 0
         
-    def find_tangent(self, shed_x, shed_y):
+    def find_theta_t(self, shed_x, shed_y):
+        ## finds the tangent angle along the foil at (shed_x,shed_y) relative to the chord line
         x = shed_x-self.chord/2
-        if x < -self.leading_ellipse_xT:
-            self.tangent_angle = np.arctan(-float((self.leading_ellipse_y**2*(x-self.leading_ellipse_origin))/(self.leading_ellipse_x**2*shed_y)))
-        elif x < self.trailing_ellipse_xT:
-            self.tangent_angle = self.tangentline_angle
+        if x <= -self.leading_ellipse_xT:
+            self.theta_t = np.arctan(-float((self.leading_ellipse_y**2*(x-self.leading_ellipse_origin))/(self.leading_ellipse_x**2*shed_y)))
+        elif x <= self.trailing_ellipse_xT:
+            self.theta_t = self.tangentline_angle
+            if shed_y < 0:
+                self.theta_t = -self.theta_t
         else:
-            self.tangent_angle = np.arctan(-float((self.trailing_ellipse_y**2*(x-self.trailing_ellipse_origin))/(self.trailing_ellipse_x**2*shed_y)))
-        return self.tangent_angle
+            self.theta_t = np.arctan(-float((self.trailing_ellipse_y**2*(x-self.trailing_ellipse_origin))/(self.trailing_ellipse_x**2*shed_y)))
+        return self.theta_t
     
     def find_r(self, shed_x, shed_y):
         x = shed_x-self.chord/2
@@ -124,31 +122,36 @@ class Geometry(object):
         self.theta_r2 = np.tan(-shed_y/x)
     
     def __repr__(self):
-        # import numpy.random as rnd
-        # from matplotlib.patches import Ellipse
+        import numpy.random as rnd
+        from matplotlib.patches import Ellipse
 
-        # ells = [Ellipse(xy=np.array([self.leading_ellipse_origin, 0]), width=2*self.leading_ellipse_x, height=2*self.leading_ellipse_y, angle=0),
-                # Ellipse(xy=np.array([self.trailing_ellipse_origin, 0]), width=2*self.trailing_ellipse_x, height=2*self.trailing_ellipse_y, angle=0)]
-        # fig = plt.figure(0)
-        # ax = fig.add_subplot(111, aspect='equal')
-        # for e in ells:
-            # ax.add_artist(e)
-            # e.set_clip_box(ax.bbox)
-            # e.set_alpha(rnd.rand())
-            # e.set_facecolor(rnd.rand(3))
-        # ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT])    
-        # ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT])    
-        # ax.set_xlim(-self.chord/2, self.chord/2)
-        # ax.set_ylim(-self.chord/2, self.chord/2)
-        # plt.show()
-        # ax.grid()
+        ells = [Ellipse(xy=np.array([self.leading_ellipse_origin, 0]), width=2*self.leading_ellipse_x, height=2*self.leading_ellipse_y, angle=0),
+                Ellipse(xy=np.array([self.trailing_ellipse_origin, 0]), width=2*self.trailing_ellipse_x, height=2*self.trailing_ellipse_y, angle=0)]
+        fig = plt.figure(0)
+        ax = fig.add_subplot(111, aspect='equal')
+        for e in ells:
+            ax.add_artist(e)
+            e.set_clip_box(ax.bbox)
+            e.set_alpha(1)
+            e.set_edgecolor('tab:blue')
+            e.set_facecolor('none')
+        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[self.leading_ellipse_yT, self.trailing_ellipse_yT], color='tab:blue')    
+        ax.plot([-self.leading_ellipse_xT,self.trailing_ellipse_xT],[-self.leading_ellipse_yT, -self.trailing_ellipse_yT], color='tab:blue')    
+        ax.set_xlim(-self.chord/2, self.chord/2)
+        ax.set_ylim(-self.chord/2, self.chord/2)
+        plt.axis('off')
+        plt.show()
         return "Foil Geometry Parameters [M]: \n \
-        chord length : \t\t % s \n \
-        leading edge height : \t\t % s \t\t\n \
-        leading edge width : \t\t % s \t\t\n \
-        trailing edge height : \t % s \t\t\n \
-        trailing edge width : \t\t % s \t\t\n \
-        " % (self.chord, self.leading_ellipse_y, self.leading_ellipse_x, self.trailing_ellipse_y, self.trailing_ellipse_x)
+        chord length : \t % s \n \
+        LE height : \t\t % s \t\t\n \
+        LE width : \t\t % s \t\t\n \
+        LE Tangent y : \t % s \t\t\n \
+        LE Tangent x : \t % s \t\t\n \
+        TE height : \t\t % s \t\t\n \
+        TE width : \t\t % s \t\t\n \
+        TE Tangent y : \t % s \t\t\n \
+        TE Tangent x : \t % s \t\t\n \
+        " % (self.chord, self.leading_ellipse_y, self.leading_ellipse_x, self.leading_ellipse_yT, -self.leading_ellipse_xT, self.trailing_ellipse_y, self.trailing_ellipse_x, self.trailing_ellipse_yT, self.trailing_ellipse_xT)
 
       
 class Dynamics(object):
@@ -176,23 +179,7 @@ class Dynamics(object):
         self.h_dot = [2*pi*f*self.h0*cos(2*pi*f*self.time[x]+pi/2) for x in samp]
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
         self.alpha_eff = [self.theta[x] - np.arctan(self.h_dot[x]/self.velocity_inf) for x in samp]
-        
-        # fig, ax1 = plt.subplots()
-        # color = 'tab:red'
-        # ax1.set_xlabel('time (s)')
-        # ax1.set_ylabel('heave position', color=color)
-        # ax1.plot(self.time, self.h, color=color)
-        # ax1.tick_params(axis='y', labelcolor=color)
-
-        # ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-
-        # color = 'tab:blue'
-        # ax2.set_ylabel('pitching angle', color=color)  # we already handled the x-label with ax1
-        # ax2.plot(self.time, self.theta, color=color)
-        # ax2.tick_params(axis='y', labelcolor=color)
-
-        # fig.tight_layout()  # otherwise the right y-label is slightly clipped
-        # plt.show()
+        self.relations = {}
     
     def update_totalCycles(self, total_cycles, plot_steps):   
         self.just_steps = int(np.ceil(round(total_cycles/self.freq,6)/self.dt)) 
@@ -203,8 +190,34 @@ class Dynamics(object):
         self.theta = [self.theta0*cos(2*pi*x/steps_per_cycle+pi/2) for x in samp]
         self.h_dot = [2*pi*f*self.h0*cos(2*pi*f*self.time[x]+pi/2) for x in samp]
         self.theta_dot = [2*pi*f*self.theta0*cos(2*pi*f*self.time[x]) for x in samp]
+        
+    def e_theta(self, timestep):
+        return self.theta0*cos(2*pi*timestep/self.steps_per_cycle+pi/2)
+        
+    def e_h_dot(self, timestep):
+        return 2*pi*self.freq*self.h0*cos(2*pi*self.freq*timestep*self.dt+pi/2)
+    
+    def e_theta_dot(self, timestep):
+        return 2*pi*self.freq*self.theta0*cos(2*pi*self.freq*timestep*self.dt)
 
     def __repr__(self):
+        fig, ax1 = plt.subplots()
+        color = 'tab:red'
+        ax1.set_xlabel('Cycles [-]', fontsize=18)
+        ax1.set_ylabel('Heave Position [m]', color=color, fontsize=18)
+        ax1.plot(np.asarray(self.time)/(1/np.asarray(self.freq)), self.h, color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+        color = 'tab:blue'
+        ax2.set_ylabel('Pitching Angle [rad]', color=color, fontsize=18)  # we already handled the x-label with ax1
+        ax2.plot(np.asarray(self.time)/(1/np.asarray(self.freq)), self.theta, '--', color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+        plt.title('Heaving and Pitching Profiles Across 3 Cycles', fontsize=18)
+        fig.tight_layout()  # otherwise the right y-label is slightly clipped
+        plt.show()
+        
         return "Foil Dynamic Parameters: \n \
         reduced frequency [-]: \t % s \n \
         chord length [M]: \t\t % s \n \
@@ -216,6 +229,27 @@ class Dynamics(object):
         fluid density [kg/m^3]: \t %s \n \
         " % (self.reduced_frequency, self.chord, self.freq , self.h0, self.theta0, self.steps_per_cycle, self.total_cycles, self.rho)
 
+def relation_eqns(FoilDyn, FoilGeo, term, time_step, xy):
+    time = (time_step % FoilDyn.steps_per_cycle)/ FoilDyn.steps_per_cycle
+    FoilDyn.theta_inf_hdot = np.arctan(-FoilDyn.e_h_dot(time_step)/FoilDyn.velocity_inf)
+    xC = xy[0]/FoilDyn.chord
+    eff_AoA = FoilDyn.e_theta(time_step) - FoilDyn.theta_inf_hdot
+    FoilDyn.theta_t  = FoilGeo.find_theta_t(xy[0], xy[1])
+    FoilDyn.theta_txy = FoilDyn.e_theta(time_step) - FoilDyn.theta_t
+    FoilGeo.find_r(xy[0], xy[1])
+    FoilDyn.theta_p_r2 = FoilDyn.e_theta(time_step) + FoilGeo.theta_r2
+    FoilDyn.u_thetadot = FoilGeo.r2*FoilDyn.e_theta_dot(time_step)
+    # u_thetadot is the pitching velocity at the vortex shed location [magnitude, x, y]
+    FoilDyn.u_thetadot = [FoilDyn.u_thetadot, FoilDyn.u_thetadot*np.sin(FoilDyn.theta_p_r2), FoilDyn.u_thetadot*np.cos(FoilDyn.theta_p_r2)]
+    FoilDyn.theta_inf_thetadot = np.arctan(-FoilDyn.u_thetadot[2]/(FoilDyn.velocity_inf - FoilDyn.u_thetadot[1]))
+    FoilDyn.theta_inf_hdot_thetadot = np.arctan(-(FoilDyn.u_thetadot[2]+FoilDyn.e_h_dot(time_step))/(FoilDyn.velocity_inf - FoilDyn.u_thetadot[1]))
+    Alpha_eff = FoilDyn.e_theta(time_step)-FoilDyn.theta_inf_hdot
+    Alpha_inf_hdot =  FoilDyn.theta_txy-FoilDyn.theta_inf_hdot
+    Alpha_inf_thetadot = FoilDyn.theta_txy-FoilDyn.theta_inf_thetadot
+    Alpha_inf_hdot_thetadot = FoilDyn.theta_txy-FoilDyn.theta_inf_hdot_thetadot
+    FoilDyn.relations = ['_Time_(t/T)','_Position_Along_Chord_(x/C)','_Pitching_Angle_(rad)','_Tangent_Angle_(rad)','_Theta_inf_+_hdot_(rad)','_Theta_inf_+_thetadot_(rad)','_Theta_inf_+_hdot_+_thetadot_(rad)','_Alpha_eff','_Alpha_inf_+_hdot','_Alpha_inf_+_thetadot','_Alpha_inf_+_hdot_+_thetadot','_r1','_r2']
+    FoilDyn.relations = np.vstack(([term + headers for headers in FoilDyn.relations], np.array([time, xC, FoilDyn.e_theta(time_step), FoilDyn.theta_txy, FoilDyn.theta_inf_hdot, FoilDyn.theta_inf_thetadot, FoilDyn.theta_inf_hdot_thetadot, Alpha_eff, Alpha_inf_hdot, Alpha_inf_thetadot, Alpha_inf_hdot_thetadot, FoilGeo.r1, FoilGeo.r2])))
+    return FoilDyn.relations  
 
 def query_yes_no(question, default=None):
     """Ask a yes/no question via input() and return their answer.
@@ -252,6 +286,23 @@ def query_yes_no(question, default=None):
             sys.stdout.write("Please respond with 'yes' or 'no' "
                              "(or 'y' or 'n').\n")
 
+def create_folders(path):
+    if os.path.exists(path):
+        if query_yes_no("\nFolder already exists, is it okay to replace existing files?")==False:
+            path = input("\nEnter the full path of the folder you would like the file to be saved w/o quotations: ")
+    else:        
+        subFiles = path.split('\\')
+        fileLayer = 2
+        tempFile = subFiles[0]
+        while fileLayer <= len(subFiles):  
+            tempFile = tempFile + '\\' + subFiles[fileLayer - 1]
+            fileLayer = fileLayer + 1
+            if not os.path.exists(tempFile):
+                try:
+                    os.mkdir(tempFile)
+                except OSError:
+                    sys.exit("\nDirectory for the simulation files could not be created/processed. Please check your directory inputs in the input form")
+
 def path_check(path, prompt, default):
     """figure out whether file exists and if so, how to handle it"""
     while True:
@@ -264,20 +315,9 @@ def path_check(path, prompt, default):
         if data.lower() not in ('a', 'b', 'c', 'd'):
             print("Not an appropriate choice.")
         elif data.lower()=='a':
-            try:
-                os.mkdir(path)
-            except OSError:
-                #print ("Creation of the directory %s failed" % path)
-                if os.path.exists(path):
-                    if query_yes_no("\nFolder already exists, is it okay to replace existing files?")==False:
-                        path = input("\nEnter the full path of the folder you would like the file to be saved w/o quotations: ")
-                    else:
-                        break
-                else:    
-                    sys.exit("\nDirectory for the simulation files could not be created/processed. Please check your directory inputs in the input form")
-            else:
-                print ("\nSuccessfully accessed the directory, %s " % path)
+            create_folders(path)
             break
+            
         elif data.lower()=='b':
             path = input("\nEnter the full path of the folder you would like the file to be saved w/o quotations: ")
         elif data.lower()=='c':
