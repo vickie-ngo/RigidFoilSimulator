@@ -159,14 +159,13 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
                                 dp_ct = dp_ct + 1
                         processed_data = np.append(processed_data, np.full((processed_data.shape[0],1), time_step).astype(int), axis=1)
                         FoilDyn.tau0_database = np.append(FoilDyn.tau0_database, processed_data, axis=0)
-
             try:
                 ws_time
             except NameError:
                 wallshear_details = [0, -1]
                 print("Vortex has not shed within the simulated time line.")
                 return
-
+            
             desired_steps = np.unique(FoilDyn.tau0_database[FoilDyn.tau0_database[:,-1]% 10 == 0,-1])
             desired_steps = desired_steps[np.logical_and(desired_steps%1000>25,desired_steps<ws_time + 20)].astype(int)
             size = len(desired_steps)
@@ -262,7 +261,6 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
         
     else:
         print('\n' + Files.project_name + ' is not a folder')
-
   
     if dataOutput == True:
         return np.hstack((wallshear_details, pressure_details))
