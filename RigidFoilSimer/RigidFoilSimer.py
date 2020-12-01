@@ -24,4 +24,4 @@ def main(FilePath, FoilGeo, FoilDyn, axs=2, x=2):
         FilePath = CFile_Generation.genCFile(FilePath, FoilGeo, FoilDyn)        
         talkToAnsys.run_wbjn(FilePath.WB_path, FilePath.wbjnFluent_path, '-B')
     
-    processData.main(FilePath, FoilDyn, FoilGeo, axs, x)
+    # processData.main(FilePath, FoilDyn, FoilGeo, axs, x)

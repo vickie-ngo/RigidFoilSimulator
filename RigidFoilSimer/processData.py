@@ -82,7 +82,7 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
 
     if os.path.isdir(data_path) == True:
         file_names = [f for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))]
-        file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >= 0 or x.find("wss") >= 0), file_names))
+        file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >= 0 or x.find("-FoilData") >= 0 or x.find("wss") >= 0), file_names))
 
         if data_path == os.path.dirname(os.path.realpath(__file__)) + r"\Tests\Assets":
             FoilDyn.update_totalCycles(2,0)
@@ -90,7 +90,7 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             for x in modfiles:
                 os.remove(data_path+"\\"+x)
             file_names = [f for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))]
-            file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >0 or x.find(FoilGeo.geo_name) >= 0), file_names))
+            file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >0 or x.find("-FoilData") >= 0 or x.find(FoilGeo.geo_name) >= 0), file_names))
         
         if len(file_names) > 0:
             FoilDyn.tau0_database = np.empty([0,4])
@@ -185,86 +185,88 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             plt.setp(axs, xlim=[0, 0.15])
             axs[0, plot_col].set_ylim([-0.1, 0.8])  
             axs[1, plot_col].set_ylim([-50, 150])   
+
+            ## Tau data
+            desired_steps = np.arange(ws_time - 1, ws_time + 1)
+            filtered = FoilDyn.tau0_database[(FoilDyn.tau0_database[:,-1]>= ws_time-1) & (FoilDyn.tau0_database[:,-1] <= ws_time+1) & (FoilDyn.tau0_database[:,0] <= FoilDyn.chord*FoilDyn.cutoff)][1:,[0,1,2,-2,-1]]
+            x = np.linspace(max([filtered[filtered[:,-1] == step, 0].min() for step in desired_steps]), min([filtered[filtered[:,-1] == step, 0].max() for step in desired_steps]), space)
+            y_interp = interp1d(filtered[:,0], filtered[:,1])
+            y = y_interp(x)
+            interp_array = np.empty([0,space])
+            interp_array2 = interp_array
+            point_array = np.empty([0,2])
+            for step in range(len(desired_steps)):
+                step_filt = filtered[filtered[:,-1]==desired_steps[step],:]
+                interp_ws = interp1d(step_filt[:,0], step_filt[:,2])
+                interp_dp = interp1d(step_filt[:,0], step_filt[:,3])
+                interp_array = np.vstack((interp_array, interp_ws(x)))
+                interp_array2 = np.vstack((interp_array2, interp_dp(x)))
+                point_array = np.vstack((point_array,[x[np.argmin(interp_ws(x))], (interp_ws(x))[np.argmin(interp_ws(x))] ]))
+            slope = -point_array[0,1]/(point_array[1,1]-point_array[0,1])
+            interp_array = interp_array[0,:600] + (interp_array[1,:600]-interp_array[0,:600])*slope
+            interp_array2 = interp_array2[0,:] + (interp_array2[1,:]-interp_array2[0,:])*slope
+            ws_xy = [x[np.argmin(interp_array)], y[np.argmin(interp_array)], interp_array[np.argmin(interp_array)], interp_array2[np.argmin(interp_array)]]
+            axs[0, plot_col].plot(x[:600]/FoilDyn.chord, interp_array, 'k')
+            axs[0, plot_col].scatter(ws_xy[0]/FoilDyn.chord, ws_xy[2], marker='x', s=50, c='k')
+            ws_time = desired_steps[0] + slope
+            wallshear_details = np.hstack((Parameters.relation_eqns(FoilDyn, FoilGeo, 'tau0', ws_time, ws_xy[0:2]), [['tau0_wallshear','tau0_P'],[ws_xy[2], ws_xy[3]]]))
+            tau0_headline = FoilGeo.geo_name + ', \nt/T=' + str(round((ws_time % FoilDyn.steps_per_cycle)/FoilDyn.steps_per_cycle, 3)) + ', \nx = ' + str(round(ws_xy[0]/FoilDyn.chord,4))
+            axs[0, plot_col].set(xlabel = 'Position along Chord, [x/C]', ylabel='Wall Shear', title=tau0_headline)
             
+            ## dpdx data             
+            desired_steps = np.arange(min(ws_time, dp_time), max(ws_time, dp_time))
+            for step in desired_steps:
+                dpdx_filtered = FoilDyn.dp_database[np.logical_and(FoilDyn.dp_database[:,0] <= FoilDyn.chord*FoilDyn.cutoff, FoilDyn.dp_database[:,-1]==step),:]
+                FoilDyn.dpdx_max = np.vstack((FoilDyn.dpdx_max, dpdx_filtered[np.argmax(dpdx_filtered[:,3]),:]))
+            FoilGeo.find_r(FoilDyn.dpdx_max[:,0],FoilDyn.dpdx_max[:,1])
+            goal_x, goal_dpdx = GraphGenerator.log_trend(FoilDyn.dpdx_max[:,0]/FoilDyn.chord, FoilDyn.dpdx_max[:,3], axs, plot_col)
+            # goal_x, goal_dpdx = GraphGenerator.log_trend((1/2+FoilGeo.r2/FoilDyn.chord), FoilDyn.dpdx_max[:,3], axs, plot_col)
+            axs[1, plot_col].scatter(goal_x, goal_dpdx, marker='x', s= 50, c = 'k')
+            
+            desired_steps = np.unique(FoilDyn.dp_database[FoilDyn.dp_database[:,-1] < ws_time,-1])
+            FoilDyn.dp_database[:,0] = FoilDyn.dp_database[:,0]/FoilDyn.chord
+            for step in desired_steps:
+                x1_less = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1] == step) & (FoilDyn.dp_database[:,0] < goal_x),:][-1,[0, 3]]
+                x1_more = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1] == step) & (FoilDyn.dp_database[:,0] > goal_x),:][0,[0, 3]]
+                x2_less = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1] == step + 1) & (FoilDyn.dp_database[:,0] < goal_x),:][-1,[0, 3]]
+                x2_more = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1] == step + 1) & (FoilDyn.dp_database[:,0] > goal_x),:][0,[0, 3]]
+                if (x1_less[-1] < goal_dpdx or x1_more[-1] < goal_dpdx) and (x2_less[-1] > goal_dpdx or x2_more[-1] > goal_dpdx):
+                    desired_steps = np.arange(step, step + 2)
+                    break
+
+            filtered = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1]>= desired_steps[0]) & (FoilDyn.dp_database[:,-1] <= desired_steps[1]) & (FoilDyn.dp_database[:,0] <= FoilDyn.cutoff)][:,[0,1,3,-1]]
+            x = np.linspace(max([filtered[filtered[:,-1] == step, 0].min() for step in desired_steps]), min([filtered[filtered[:,-1] == step, 0].max() for step in desired_steps]), space)
+            y_interp = interp1d(filtered[:,0], filtered[:,1])
+            y = y_interp(x)
+            interp_array = np.empty([0,space])
+            point_array = np.empty([0,2])
+            for step in desired_steps:
+                step_filt = filtered[filtered[:,-1]==step,:]
+                interp_eqn = interp1d(step_filt[:,0], step_filt[:,2])
+                interp_array = np.vstack((interp_array, interp_eqn(x)))
+                point_array = np.vstack((point_array,[goal_x, interp_eqn(goal_x) ])) 
+            slope = (goal_dpdx-point_array[0,1])/(point_array[1,1]-point_array[0,1])
+            interp_array = interp_array[0,:] + (interp_array[1,:]-interp_array[0,:])*slope
+            dp_xy = [x[np.argmax(interp_array)], y[np.argmax(interp_array)], interp_array[np.argmax(interp_array)]]
+            axs[1, plot_col].plot(x, interp_array, 'k')
+            dp_time = desired_steps[0] + slope
+            pressure_details = np.hstack((Parameters.relation_eqns(FoilDyn, FoilGeo, 'dpdx', dp_time, [dp_xy[0]*FoilDyn.chord, dp_xy[1]]), [['dpdx_max'],[dp_xy[2]]]))
+            dpdx_headline = 't/T=' + str(round((dp_time % FoilDyn.steps_per_cycle)/FoilDyn.steps_per_cycle, 3)) + ', \nx = ' + str(round(dp_xy[0],4))
+            axs[1, plot_col].set(xlabel='Position along Chord, [x/C]', ylabel='dP/dx', title=dpdx_headline)
+            
+            plt.draw()
+            
+            if dataOutput == True:
+                return np.hstack((wallshear_details, pressure_details))
+            else:
+                print(np.hstack((wallshear_details, pressure_details)))
+                    
         else:
             print('\n' + Files.project_name + ' does not have data')
-
-        ## Tau data
-        desired_steps = np.arange(ws_time - 1, ws_time + 1)
-        filtered = FoilDyn.tau0_database[(FoilDyn.tau0_database[:,-1]>= ws_time-1) & (FoilDyn.tau0_database[:,-1] <= ws_time+1) & (FoilDyn.tau0_database[:,0] <= FoilDyn.chord*FoilDyn.cutoff)][1:,[0,1,2,-2,-1]]
-        x = np.linspace(max([filtered[filtered[:,-1] == step, 0].min() for step in desired_steps]), min([filtered[filtered[:,-1] == step, 0].max() for step in desired_steps]), space)
-        y_interp = interp1d(filtered[:,0], filtered[:,1])
-        y = y_interp(x)
-        interp_array = np.empty([0,space])
-        interp_array2 = interp_array
-        point_array = np.empty([0,2])
-        for step in range(len(desired_steps)):
-            step_filt = filtered[filtered[:,-1]==desired_steps[step],:]
-            interp_ws = interp1d(step_filt[:,0], step_filt[:,2])
-            interp_dp = interp1d(step_filt[:,0], step_filt[:,3])
-            interp_array = np.vstack((interp_array, interp_ws(x)))
-            interp_array2 = np.vstack((interp_array2, interp_dp(x)))
-            point_array = np.vstack((point_array,[x[np.argmin(interp_ws(x))], (interp_ws(x))[np.argmin(interp_ws(x))] ]))
-        slope = -point_array[0,1]/(point_array[1,1]-point_array[0,1])
-        interp_array = interp_array[0,:600] + (interp_array[1,:600]-interp_array[0,:600])*slope
-        interp_array2 = interp_array2[0,:] + (interp_array2[1,:]-interp_array2[0,:])*slope
-        ws_xy = [x[np.argmin(interp_array)], y[np.argmin(interp_array)], interp_array[np.argmin(interp_array)], interp_array2[np.argmin(interp_array)]]
-        axs[0, plot_col].plot(x[:600]/FoilDyn.chord, interp_array, 'k')
-        axs[0, plot_col].scatter(ws_xy[0]/FoilDyn.chord, ws_xy[2], marker='x', s=50, c='k')
-        ws_time = desired_steps[0] + slope
-        wallshear_details = np.hstack((Parameters.relation_eqns(FoilDyn, FoilGeo, 'tau0', ws_time, ws_xy[0:2]), [['tau0_wallshear','tau0_P'],[ws_xy[2], ws_xy[3]]]))
-        tau0_headline = FoilGeo.geo_name + ', \nt/T=' + str(round((ws_time % FoilDyn.steps_per_cycle)/FoilDyn.steps_per_cycle, 3)) + ', \nx = ' + str(round(ws_xy[0]/FoilDyn.chord,4))
-        axs[0, plot_col].set(xlabel = 'Position along Chord, [x/C]', ylabel='Wall Shear', title=tau0_headline)
-        
-        ## dpdx data             
-        desired_steps = np.arange(min(ws_time, dp_time), max(ws_time, dp_time))
-        for step in desired_steps:
-            dpdx_filtered = FoilDyn.dp_database[np.logical_and(FoilDyn.dp_database[:,0] <= FoilDyn.chord*FoilDyn.cutoff, FoilDyn.dp_database[:,-1]==step),:]
-            FoilDyn.dpdx_max = np.vstack((FoilDyn.dpdx_max, dpdx_filtered[np.argmax(dpdx_filtered[:,3]),:]))
-        FoilGeo.find_r(FoilDyn.dpdx_max[:,0],FoilDyn.dpdx_max[:,1])
-        goal_x, goal_dpdx = GraphGenerator.log_trend(FoilDyn.dpdx_max[:,0]/FoilDyn.chord, FoilDyn.dpdx_max[:,3], axs, plot_col)
-        # goal_x, goal_dpdx = GraphGenerator.log_trend((1/2+FoilGeo.r2/FoilDyn.chord), FoilDyn.dpdx_max[:,3], axs, plot_col)
-        axs[1, plot_col].scatter(goal_x, goal_dpdx, marker='x', s= 50, c = 'k')
-        
-        desired_steps = np.unique(FoilDyn.dp_database[FoilDyn.dp_database[:,-1] < ws_time,-1])
-        FoilDyn.dp_database[:,0] = FoilDyn.dp_database[:,0]/FoilDyn.chord
-        for step in desired_steps:
-            x1_less = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1] == step) & (FoilDyn.dp_database[:,0] < goal_x),:][-1,[0, 3]]
-            x1_more = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1] == step) & (FoilDyn.dp_database[:,0] > goal_x),:][0,[0, 3]]
-            x2_less = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1] == step + 1) & (FoilDyn.dp_database[:,0] < goal_x),:][-1,[0, 3]]
-            x2_more = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1] == step + 1) & (FoilDyn.dp_database[:,0] > goal_x),:][0,[0, 3]]
-            if (x1_less[-1] < goal_dpdx or x1_more[-1] < goal_dpdx) and (x2_less[-1] > goal_dpdx or x2_more[-1] > goal_dpdx):
-                desired_steps = np.arange(step, step + 2)
-                break
-
-        filtered = FoilDyn.dp_database[(FoilDyn.dp_database[:,-1]>= desired_steps[0]) & (FoilDyn.dp_database[:,-1] <= desired_steps[1]) & (FoilDyn.dp_database[:,0] <= FoilDyn.cutoff)][:,[0,1,3,-1]]
-        x = np.linspace(max([filtered[filtered[:,-1] == step, 0].min() for step in desired_steps]), min([filtered[filtered[:,-1] == step, 0].max() for step in desired_steps]), space)
-        y_interp = interp1d(filtered[:,0], filtered[:,1])
-        y = y_interp(x)
-        interp_array = np.empty([0,space])
-        point_array = np.empty([0,2])
-        for step in desired_steps:
-            step_filt = filtered[filtered[:,-1]==step,:]
-            interp_eqn = interp1d(step_filt[:,0], step_filt[:,2])
-            interp_array = np.vstack((interp_array, interp_eqn(x)))
-            point_array = np.vstack((point_array,[goal_x, interp_eqn(goal_x) ])) 
-        slope = (goal_dpdx-point_array[0,1])/(point_array[1,1]-point_array[0,1])
-        interp_array = interp_array[0,:] + (interp_array[1,:]-interp_array[0,:])*slope
-        dp_xy = [x[np.argmax(interp_array)], y[np.argmax(interp_array)], interp_array[np.argmax(interp_array)]]
-        axs[1, plot_col].plot(x, interp_array, 'k')
-        dp_time = desired_steps[0] + slope
-        pressure_details = np.hstack((Parameters.relation_eqns(FoilDyn, FoilGeo, 'dpdx', dp_time, [dp_xy[0]*FoilDyn.chord, dp_xy[1]]), [['dpdx_max'],[dp_xy[2]]]))
-        dpdx_headline = 't/T=' + str(round((dp_time % FoilDyn.steps_per_cycle)/FoilDyn.steps_per_cycle, 3)) + ', \nx = ' + str(round(dp_xy[0],4))
-        axs[1, plot_col].set(xlabel='Position along Chord, [x/C]', ylabel='dP/dx', title=dpdx_headline)
-        
-        plt.draw()
-        
+            wallshear_details = [0, -1]
     else:
         print('\n' + Files.project_name + ' is not a folder')
-  
-    if dataOutput == True:
-        return np.hstack((wallshear_details, pressure_details))
-    else:
-        print(np.hstack((wallshear_details, pressure_details)))
+        wallshear_details = [0, -1]
+
               
     return wallshear_details[0], wallshear_details[1]
