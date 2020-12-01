@@ -34,6 +34,6 @@ setuptools.setup(
         'AnsysFiles/WorkbenchProjectTemplate_files/dp0/global/MECH/*',
         'AnsysFiles/WorkbenchProjectTemplate_files/user_files/*',
         ]},
-    install_requires=['pytest', 'matplotlib', 'scipy', 'sympy']
+    install_requires=['pytest', 'matplotlib', 'scipy', 'sympy', 'lmfit']
 
 )
