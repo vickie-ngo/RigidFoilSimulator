@@ -20,7 +20,6 @@ def readData(file_path):
 def index_containing_substring(mainstring, substring):
     for i, s in enumerate(mainstring):
         if substring in s:
-            print(len(mainstring))
             return i - len(mainstring)
     return -1
 
@@ -28,7 +27,7 @@ steps_per_cycle = 1000
 f = 1.6
 f_s = steps_per_cycle/f
 
-file_path = r'C:\Users\vicki\Google Drive\Lab CFD\ProcessedData\LiftData\GEO1_PM_012.txt'
+file_path = r'C:\Users\vicki\Box\CaseFiles\FullSet\RigidPlate\RigidPlate-008\RigidPlate-008_files\dp0\FFF\Fluent\lift-rfile.out'
 # file_path = r'C:\Users\vicki\Google Drive\Lab CFD\ProcessedData\LiftData\GEO1_PM_008.txt'
 variables, data = readData(file_path)
 variables = np.hstack((variables, ['Cycle Number']))
@@ -53,6 +52,3 @@ freqs = fftpack.fftfreq(len(lift)) * f_s
 axs[0,1].stem(freqs, np.abs(X), use_line_collection = True)
 axs[0,1].scatter(freqs[np.abs(X)>2], (np.abs(X))[np.abs(X)>2], marker = 'x', color = 'r')
 axs[0,1].set(xlabel = 'Frequency in Hertz [Hz]',xlim = (0, 30), ylabel = 'Frequency Domain (Spectrum) Magnitude', ylim = (-5, 110), title = 'CFD Frequency Domain')
-# axs[0,1].set_xlim(0, 30)
-# axs[0,1].set_ylim(-5, 110)
-plt.show()

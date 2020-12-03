@@ -69,6 +69,7 @@ class Geometry(object):
         self.trailing_ellipse_y = trailing_ellipse_y
         self.trailing_ellipse_x = trailing_ellipse_x
         self.trailing_ellipse_origin = chord/2 - self.trailing_ellipse_x
+        self.radius_of_curvature = leading_ellipse_y**2/(leading_ellipse_x*chord)
         self.chord = chord
         
         # These equations are necessary if you decide to switch to SpaceClaim Geometry Scripting. 

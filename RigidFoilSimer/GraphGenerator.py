@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy import fftpack
 import lmfit
 import math
 
@@ -33,6 +34,35 @@ def pressure(x, a, b):
 def cubicRatio(x, a, b, c, d):
     return a*np.power(np.log(x),3)+b*np.power(np.log(x),2)+c*np.log(x)+d
 
+def is_integer(n):
+    try:
+        float(n)
+        return float(n)
+    except ValueError:
+        return n
+
+def readData(file_path):
+    with open(file_path, 'r') as f:
+        for line in f:
+            stripped_data = line.strip().split()
+            if isinstance(is_integer((stripped_data)[-1]),float):
+                cols = np.array([is_integer(i) for i in stripped_data])
+                if len(cols) != data.shape[-1]:
+                    data = np.empty([0,len(cols)])
+                data = np.vstack((data, cols))
+            else:
+                if '(' in line:
+                    variables = [''.join(e for e in i if e.isalnum()) for i in line.strip().split()]
+                    data = np.empty([0, len(variables)])
+                continue
+    return variables, data
+
+def index_containing_substring(mainstring, substring):
+    for i, s in enumerate(mainstring):
+        if substring in s:
+            return i - len(mainstring)
+    return -1
+
 def drawTrendlines(file_name, x_term, x_label, y_term, y_label, legend_term, outlier = range(0,8), coeff_count = 2):
     xint = 0.005
     yint = 0.01
@@ -41,27 +71,21 @@ def drawTrendlines(file_name, x_term, x_label, y_term, y_label, legend_term, out
     pol_coeff = np.empty((0,coeff_count))
 
     ## Reading Data
-    file_object = open(file_name + '.txt',"r")
-    variable_names = np.array(file_object.readline().replace(",", " ").strip().split())
-    data_size = len(variable_names)
-    data = np.empty((0,data_size))
-    for line in file_object:
-        line = np.array(line.replace(","," ").strip().split())
-        data = np.append(data, [line], axis=0)
-
-    col_leg = np.where(variable_names == legend_term)[0]
-    col_x = np.where(variable_names == x_term)[0]
-    col_y = np.where(variable_names == y_term)[0]
+    variables, data = readData(file_name + '.txt')    
+    col_leg = variables.index(''.join(e for e in legend_term if e.isalnum()))
+    col_x = variables.index(''.join(e for e in x_term if e.isalnum()))
+    col_y = variables.index(''.join(e for e in y_term if e.isalnum()))
     leg_set = np.unique(data[:,col_leg])
 
     ## Generating Plot
     fig = plt.figure(figsize=(10.5, 6.5), dpi = 500)
     axs = fig.add_axes([0.1, 0.2, 0.45, 0.75])
+
     for sets in range(leg_set.shape[0]):
-        plot_data = data[(data[:,col_leg] == leg_set[sets])[:,0],:]
-        plot_data = plot_data[plot_data[:,col_x].astype(float)[:,0].argsort()]
-        x = plot_data[:,col_x].astype(float)[:,0]
-        y = plot_data[:,col_y].astype(float)[:,0]
+        plot_data = data[data[:,col_leg] == leg_set[sets],:]
+        plot_data = plot_data[plot_data[:,col_x].argsort()]
+        x = plot_data[:,col_x].astype(float)
+        y = plot_data[:,col_y].astype(float)
         axs.plot(x[outlier],y[outlier], marker='o', linestyle = 'None', color = color[sets], label = 'k='+leg_set[sets])
         if coeff_count == 2:
             popt, pcov = curve_fit(linear, x[outlier], y[outlier])
@@ -70,7 +94,7 @@ def drawTrendlines(file_name, x_term, x_label, y_term, y_label, legend_term, out
             popt, pcov = curve_fit(parabolic, x[outlier], y[outlier])
             axs.plot(x, parabolic(x, *popt), '--', color = color[sets]) #, label='fit: slope=%5.3f, y-intercept=%5.3f' % tuple(popt))
         pol_coeff = np.append(pol_coeff, [popt], axis = 0)
-        
+    
     axs.set_xlabel(x_label, fontsize=18)
     plt.xticks(np.arange(data[:,col_x].astype(np.float).min()-data[:,col_x].astype(np.float).min()%xint, max(data[:,col_x].astype(np.float))+xint, xint))
     axs.set_ylabel(y_label, fontsize=18)
@@ -92,7 +116,7 @@ def curveTrend(file_name, legend_term, leg_set, pol_coeff):
 
     axs.plot(leg_set, pol_coeff[:,0], marker='o', linestyle = 'None', color = color[0], label='slope trend')
     popt, pcov = curve_fit(linear, leg_set, pol_coeff[:,0])
-    axs.plot(leg_set, linear(leg_set, *popt), '--', color = color[0], label='fit: slope=%5.3f, intercept=%5.3f' % tuple(popt))
+    axs.plot(leg_set, linear(leg_set, *popt), '--', color = color[0], label='fit: slope=%5.3f, y-int=%5.3f' % tuple(popt))
     axs.legend(bbox_to_anchor=(1.15, 1), loc='upper left', borderaxespad=0., fontsize=13)
     axs.set_ylabel('slope', fontsize=18)
 
@@ -128,5 +152,33 @@ def log_trend(x, y, axs, plot_col):
     x_goal = (1/popt[1])*np.log(slope_goal/(popt[0]*popt[1]))
     y_goal = model(x_goal, *popt)
     return x_goal, y_goal
+
+def liftDataProcessing(fluent_file_path, dyn, geo, axs, x):
+    steps_per_cycle = dyn.steps_per_cycle
+    f_s = steps_per_cycle/dyn.freq
+
+    file_path = fluent_file_path + '\lift-rfile.out'
+    # file_path = r'C:\Users\vicki\Google Drive\Lab CFD\ProcessedData\LiftData\GEO1_PM_008.txt'
+    variables, data = readData(file_path)
+    variables = np.hstack((variables, ['Cycle Number']))
+    data = np.hstack((data, np.transpose([np.floor(data[:,0]/steps_per_cycle)])))
+    cycle_count = np.unique(data[:,-1])
+
+    lift_variable_index = index_containing_substring(variables, 'lift')
+    for cycle in cycle_count:
+        cycle_data = data[data[:,-1] == cycle, :]
+        if cycle_data.shape[0] > 1:
+            axs[0,x].plot(cycle_data[:,0]%steps_per_cycle/steps_per_cycle, cycle_data[:,lift_variable_index], label = 'Cycle = ' + str(cycle))    
+        else:
+            cycle_data = data[data[:,-1] == cycle -1, :]
+    axs[0,x].legend()
+    axs[0,x].set(title = geo.geo_name,xlabel = '$Time$ [t/T]', ylabel = '$C_L$')
+
+    lift = cycle_data[:,lift_variable_index]
+    X = fftpack.fft(lift)
+    freqs = fftpack.fftfreq(len(lift)) * f_s
+    axs[1,x].stem(freqs, np.abs(X), use_line_collection = True)
+    axs[1,x].scatter(freqs[np.abs(X)>2], (np.abs(X))[np.abs(X)>2], marker = 'x', color = 'r')
+    axs[1,x].set(xlabel = 'Frequency in Hertz [Hz]',xlim = (0, 30), ylabel = 'Frequency (Spectrum) Magnitude', ylim = (-5, 110), title = 'CFD Frequency Domain')
 
 # def apply_lmfit(x, y, model1, model2=):

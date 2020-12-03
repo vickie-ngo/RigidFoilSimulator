@@ -30,10 +30,11 @@ def add_data_columns(file_path, chord, theta, h, cutoff):
         variable_names = [np.append(variable_names, np.array(['x-rotated', 'y-rotated', 'calculated-wallshear']))]
         data = variable_names
         scatterPlot = np.empty((0,3))
-        
+        print(file_object)
         for line in file_object:
             # Get data from each line and calculate the rotated position
             cols = np.array([float(i) for i in line.replace(","," ").strip().split()])
+            print(cols)
             xy = cols[1:3]
             cols[2] = cols[2] - h
             xyR = np.dot(R, cols[1:3]) + [chord/2, 0]      
@@ -91,7 +92,7 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
                 os.remove(data_path+"\\"+x)
             file_names = [f for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))]
             file_names = list(filter(lambda x:(x.find("les") >= 0 or x.find("wall") >0 or x.find("-FoilData") >= 0 or x.find(FoilGeo.geo_name) >= 0), file_names))
-        
+            
         if len(file_names) > 0:
             FoilDyn.tau0_database = np.empty([0,4])
             ws_ct, dp_ct, plotting_range = 0, 0, 5
@@ -108,17 +109,17 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             
             for x in range(len(file_names)):
                 time_step = times[x]
-
+                print(time_step)
                 if time_step > start_time_step and time_step < start_time_step + 200 and round(FoilDyn.theta[time_step],3) != 0: # and time_step % 10 == 0:
                     if ws_ct<plotting_range or dp_ct<plotting_range or time_step % 5 == 0:
                         file_path = convert_2_txt(data_path+"\\"+file_names[x])
-                        (final_data, scatterPlot) = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time_step], FoilDyn.h[time_step], 1)
+                        final_data, scatterPlot = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time_step], FoilDyn.h[time_step], cutoff)
                         # np.savetxt(savePath + str(time_step) + '.txt', final_data[:-1,:], fmt="%s")
                         # processed data is of rotated x, rotated y, and calculated wallshear data
                         processed_data = final_data[1:,-3:].astype(float)
                         processed_LE = final_data[1:,:].astype(float)
                         processed_LE = processed_LE[processed_LE[:,-3] <= FoilDyn.cutoff*FoilDyn.chord, :]
-                        
+                        print(final_data)
                         wallshear = processed_LE[1:, -1]
                         if np.min(wallshear) < 0 and wallshear[0] > 0 and ws_ct < plotting_range:
                             if ws_ct == 0:
@@ -154,8 +155,6 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
                             if np.argmax(dpdx_filt) < round(space*0.5) and ddpdx[np.argmax(dpdx_filt)] < 0 and ddpdx[0] > 0 and dpdx_filt[0] < 0 and dp_ct < plotting_range:# and np.max(dpdx_filt) > 0
                                 if dp_ct == 0:
                                     dp_time = time_step
-                                    # xy = dp_data[:,:2].astype(float)[np.argmax(dpdx_filt)]
-                                    # pressure_details = Parameters.relation_eqns(FoilDyn, FoilGeo, 'dpdx', ws_ct, xy) 
                                 dp_ct = dp_ct + 1
                         processed_data = np.append(processed_data, np.full((processed_data.shape[0],1), time_step).astype(int), axis=1)
                         FoilDyn.tau0_database = np.append(FoilDyn.tau0_database, processed_data, axis=0)
@@ -268,5 +267,4 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
         print('\n' + Files.project_name + ' is not a folder')
         wallshear_details = [0, -1]
 
-              
     return wallshear_details[0], wallshear_details[1]
