@@ -313,6 +313,7 @@ def path_check(path, prompt, default):
             data = 'd'
         else:
             data = input(prompt % (path))
+            
         if data.lower() not in ('a', 'b', 'c', 'd'):
             print("Not an appropriate choice.")
         elif data.lower()=='a':

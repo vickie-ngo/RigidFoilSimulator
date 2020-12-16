@@ -30,11 +30,9 @@ def add_data_columns(file_path, chord, theta, h, cutoff):
         variable_names = [np.append(variable_names, np.array(['x-rotated', 'y-rotated', 'calculated-wallshear']))]
         data = variable_names
         scatterPlot = np.empty((0,3))
-        print(file_object)
         for line in file_object:
             # Get data from each line and calculate the rotated position
             cols = np.array([float(i) for i in line.replace(","," ").strip().split()])
-            print(cols)
             xy = cols[1:3]
             cols[2] = cols[2] - h
             xyR = np.dot(R, cols[1:3]) + [chord/2, 0]      
@@ -119,7 +117,6 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
                         processed_data = final_data[1:,-3:].astype(float)
                         processed_LE = final_data[1:,:].astype(float)
                         processed_LE = processed_LE[processed_LE[:,-3] <= FoilDyn.cutoff*FoilDyn.chord, :]
-                        print(final_data)
                         wallshear = processed_LE[1:, -1]
                         if np.min(wallshear) < 0 and wallshear[0] > 0 and ws_ct < plotting_range:
                             if ws_ct == 0:
@@ -131,26 +128,28 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
                         if pressure_term.size > 0:
                             if FoilDyn.tau0_database.shape[-1] < 5:
                                 FoilDyn.tau0_database = np.insert(FoilDyn.tau0_database, 4, 0, axis = 1)
-                                FoilDyn.dp_database = np.empty([0,5])
-                                FoilDyn.dpdx_max = np.empty([0,5])
+                                FoilDyn.dp_database = np.empty([0,6])
+                                FoilDyn.dpdx_max = np.empty([0,6])
                             processed_data = np.append(processed_data, final_data[1:,pressure_term].astype(float), axis=1)
                             p = processed_LE[:,pressure_term]
                             x = processed_LE[:,-3]
                             y = processed_LE[:,-2]
                             x_mid_panel = (x[:-1] + x[1:])/2
                             y_mid_panel = (y[:-1] + y[1:])/2
+                            p_mid_panel = ((p[:-1] + p[1:])/2)[:,0]
                             dp = p[1:]-p[:-1]
                             dx = x[1:]-x[:-1]
                             dy = y[1:]-y[:-1]
                             xx = np.linspace(x_mid_panel.min(), x_mid_panel.max(), space)
                             yy = np.linspace(y_mid_panel.min(), y_mid_panel.max(), space)
-                            itp = interp1d(x_mid_panel, (np.squeeze(dp)*FoilDyn.chord/dx), kind='linear')
+                            itp = interp1d(x_mid_panel, p_mid_panel, kind='linear')
+                            itdpdx = interp1d(x_mid_panel, (np.squeeze(dp)*FoilDyn.chord/dx), kind='linear')
                             # Calculate smoothed curve of dpdx
-                            dpdx_filt = savgol_filter(itp(xx), window_size, poly_order)
-                            # popt, pcov = curve_fit(GraphGenerator.pressure, xx, itp(xx), maxfev=10000)
+                            dpdx_filt = savgol_filter(itdpdx(xx), window_size, poly_order)
+                            # popt, pcov = curve_fit(GraphGenerator.pressure, xx, itdpdx(xx), maxfev=10000)
                             # dpdx_filt = GraphGenerator.pressure(xx, *popt)
                             ddpdx = dpdx_filt[1:]-dpdx_filt[:-1]
-                            dp_data = np.column_stack((xx, yy, itp(xx), dpdx_filt, np.full((space,1),time_step).astype(int)))
+                            dp_data = np.column_stack((xx, yy, itdpdx(xx), dpdx_filt, itp(xx), np.full((space,1),time_step).astype(int)))
                             FoilDyn.dp_database = np.vstack((FoilDyn.dp_database, dp_data))
                             if np.argmax(dpdx_filt) < round(space*0.5) and ddpdx[np.argmax(dpdx_filt)] < 0 and ddpdx[0] > 0 and dpdx_filt[0] < 0 and dp_ct < plotting_range:# and np.max(dpdx_filt) > 0
                                 if dp_ct == 0:
@@ -165,9 +164,11 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
                 print("Vortex has not shed within the simulated time line.")
                 return
             
-            desired_steps = np.unique(FoilDyn.tau0_database[FoilDyn.tau0_database[:,-1]% 10 == 0,-1])
-            desired_steps = desired_steps[np.logical_and(desired_steps%1000>25,desired_steps<ws_time + 20)].astype(int)
+            desired_steps = np.unique(FoilDyn.tau0_database[FoilDyn.tau0_database[:,-1]% 5 == 0,-1])
+            desired_steps = desired_steps[np.logical_and(desired_steps%1000>2,desired_steps<ws_time + 20)].astype(int)
             size = len(desired_steps)
+            print(desired_steps)
+            print(size)
             for step in range(size):
                 if desired_steps[step] != 0:
                     tau0_filtered = FoilDyn.tau0_database[np.logical_and(FoilDyn.tau0_database[:,0] <= FoilDyn.chord*FoilDyn.cutoff, FoilDyn.tau0_database[:,-1]==desired_steps[step]),:]
@@ -177,9 +178,10 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
                     # tau0_r2 = 1/2+FoilGeo.r2/FoilDyn.chord
                     # FoilGeo.find_r(dpdx_filtered[:,0], dpdx_filtered[:,1])
                     # dpdx_r2 = 1/2+FoilGeo.r2/FoilDyn.chord
-                    axs[0, plot_col].plot(tau0_filtered[:,0]/FoilDyn.chord, tau0_filtered[:,2], label = tT, color = (220/255, 68/255, 0, (step+2)/20))
+                    axs[0, plot_col].plot(tau0_filtered[:,0]/FoilDyn.chord, tau0_filtered[:,2], label = tT, color = (220/255, 68/255, 0, (step)/size))
                     # axs[0, plot_col].plot(tau0_r2,tau0_filtered[:,2], label = tT)
-                    axs[1, plot_col].plot(dpdx_filtered[:,0]/FoilDyn.chord, dpdx_filtered[:,3], label = tT, color = (220/255, 68/255, 0, (step+2)/20))
+                    axs[1, plot_col].plot(dpdx_filtered[:,0]/FoilDyn.chord, dpdx_filtered[:,3], label = tT, color = (220/255, 68/255, 0, (step)/size))
+                    axs[2, plot_col].plot(dpdx_filtered[:,0]/FoilDyn.chord, dpdx_filtered[:,4], label = tT, color = (220/255, 68/255, 0, (step)/size))
                     # axs[1, plot_col].plot(dpdx_r2, dpdx_filtered[:,3], label = tT)
             plt.setp(axs, xlim=[0, 0.15])
             axs[0, plot_col].set_ylim([-0.1, 0.8])  

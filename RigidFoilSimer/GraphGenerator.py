@@ -147,7 +147,7 @@ def log_trend(x, y, axs, plot_col):
     xx = np.linspace(x.min(), 0.15, 1000)
     yy = model(xx, *popt)
     # axs[-1, plot_col].scatter(x, y, marker = '.', color = 'b')
-    axs[-1, plot_col].plot(xx, yy, color='b')
+    axs[1, plot_col].plot(xx, yy, color='b')
     slope_goal = -100
     x_goal = (1/popt[1])*np.log(slope_goal/(popt[0]*popt[1]))
     y_goal = model(x_goal, *popt)
