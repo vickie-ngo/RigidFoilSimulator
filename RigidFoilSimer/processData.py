@@ -9,7 +9,7 @@ import matplotlib as mpl
 
 def convert_2_txt(file_path):
     """Identifies if file needs to be converted to txt"""
-    if (file_path.find(".txt") < 0):
+    if (file_path.find('.txt') < 0):
         new_path = file_path + ".txt"
         os.rename(file_path, new_path)
         file_path = new_path
@@ -107,7 +107,6 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             
             for x in range(len(file_names)):
                 time_step = times[x]
-                print(time_step)
                 if time_step > start_time_step and time_step < start_time_step + 200 and round(FoilDyn.theta[time_step],3) != 0: # and time_step % 10 == 0:
                     if ws_ct<plotting_range or dp_ct<plotting_range or time_step % 5 == 0:
                         file_path = convert_2_txt(data_path+"\\"+file_names[x])
