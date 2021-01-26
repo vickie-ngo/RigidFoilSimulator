@@ -1,5 +1,6 @@
 include LICENSE.txt
 include README.md
+recursive-include RigidFoilSimer/*
 recursive-include RigidFoilSimer/Tests/*
 recursive-include RigidFoilSimer/Tests/Assets/*
 recursive-include RigidFoilSimer/AnsysFiles/*
