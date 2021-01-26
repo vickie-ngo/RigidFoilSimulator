@@ -1,9 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy import fftpack
+from scipy import fftpack, interpolate, signal
+import pandas as pd
 import lmfit
 import math
+import os
 
 def linear(x, m, b):
     return m*x+b
@@ -153,11 +155,11 @@ def log_trend(x, y, axs, plot_col):
     y_goal = model(x_goal, *popt)
     return x_goal, y_goal
 
-def liftDataProcessing(fluent_file_path, dyn, geo, axs, x):
+def liftDataProcessing(files, dyn, geo, axs, x):
     steps_per_cycle = dyn.steps_per_cycle
     f_s = steps_per_cycle/dyn.freq
 
-    file_path = fluent_file_path + '\lift-rfile.out'
+    file_path = files.data_path + '\lift-rfile.out'
     # file_path = r'C:\Users\vicki\Google Drive\Lab CFD\ProcessedData\LiftData\GEO1_PM_008.txt'
     variables, data = readData(file_path)
     variables = np.hstack((variables, ['Cycle Number']))
@@ -165,12 +167,15 @@ def liftDataProcessing(fluent_file_path, dyn, geo, axs, x):
     cycle_count = np.unique(data[:,-1])
 
     lift_variable_index = index_containing_substring(variables, 'lift')
+    
     for cycle in cycle_count:
         cycle_data = data[data[:,-1] == cycle, :]
-        if cycle_data.shape[0] > 1:
-            axs[0,x].plot(cycle_data[:,0]%steps_per_cycle/steps_per_cycle, cycle_data[:,lift_variable_index], label = 'Cycle = ' + str(cycle))    
+        if cycle_data.shape[0] > 1 and cycle == 2:
+            axs[0,x].plot(cycle_data[:,0]%steps_per_cycle/steps_per_cycle, cycle_data[:,lift_variable_index], linewidth = 5, label = ' CFD Cycle = ' + str(cycle+1))    
+            forceData = np.hstack((np.vstack(cycle_data[:,0]%steps_per_cycle/steps_per_cycle), np.vstack(cycle_data[:,lift_variable_index])))
         else:
             cycle_data = data[data[:,-1] == cycle -1, :]
+            
     axs[0,x].legend()
     axs[0,x].set(title = geo.geo_name,xlabel = '$Time$ [t/T]', ylabel = '$C_L$')
 
@@ -179,6 +184,6 @@ def liftDataProcessing(fluent_file_path, dyn, geo, axs, x):
     freqs = fftpack.fftfreq(len(lift)) * f_s
     axs[1,x].stem(freqs, np.abs(X), use_line_collection = True)
     axs[1,x].scatter(freqs[np.abs(X)>2], (np.abs(X))[np.abs(X)>2], marker = 'x', color = 'r')
-    axs[1,x].set(xlabel = 'Frequency in Hertz [Hz]',xlim = (0, 30), ylabel = 'Frequency (Spectrum) Magnitude', ylim = (-5, 110), title = 'CFD Frequency Domain')
-
+    axs[1,x].set(xlabel = 'Frequency in Hertz [Hz]',xlim = (0, 30), ylabel = 'Frequency (Spectrum) Magnitude', ylim = (-5, 110), title = 'CFD Frequency Domain')   
+            
 # def apply_lmfit(x, y, model1, model2=):

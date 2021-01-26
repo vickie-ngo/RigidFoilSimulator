@@ -11,7 +11,8 @@ def convert_2_txt(file_path):
     """Identifies if file needs to be converted to txt"""
     if (file_path.find('.txt') < 0):
         new_path = file_path + ".txt"
-        os.rename(file_path, new_path)
+        if not os.path.isfile(new_path):
+            os.rename(file_path, new_path)
         file_path = new_path
     return file_path 
     
@@ -93,7 +94,7 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             
         if len(file_names) > 0:
             FoilDyn.tau0_database = np.empty([0,4])
-            ws_ct, dp_ct, plotting_range = 0, 0, 5
+            ws_ct, dp_ct, plotting_range = 0, -1, 5
             space, window_size, poly_order = 1000, 11, 1
             
             file_names = sorted(file_names)
@@ -107,6 +108,7 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             
             for x in range(len(file_names)):
                 time_step = times[x]
+                print(time_step)
                 if time_step > start_time_step and time_step < start_time_step + 200 and round(FoilDyn.theta[time_step],3) != 0: # and time_step % 10 == 0:
                     if ws_ct<plotting_range or dp_ct<plotting_range or time_step % 5 == 0:
                         file_path = convert_2_txt(data_path+"\\"+file_names[x])
@@ -125,7 +127,8 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
                         pressure_name = "pressure-coefficient"
                         pressure_term = np.where(final_data[0,:] == pressure_name)[0]
                         if pressure_term.size > 0:
-                            if FoilDyn.tau0_database.shape[-1] < 5:
+                            if dp_ct == -1:
+                                dp_ct = 0
                                 FoilDyn.tau0_database = np.insert(FoilDyn.tau0_database, 4, 0, axis = 1)
                                 FoilDyn.dp_database = np.empty([0,6])
                                 FoilDyn.dpdx_max = np.empty([0,6])
@@ -166,8 +169,6 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             desired_steps = np.unique(FoilDyn.tau0_database[FoilDyn.tau0_database[:,-1]% 5 == 0,-1])
             desired_steps = desired_steps[np.logical_and(desired_steps%1000>2,desired_steps<ws_time + 20)].astype(int)
             size = len(desired_steps)
-            print(desired_steps)
-            print(size)
             for step in range(size):
                 if desired_steps[step] != 0:
                     tau0_filtered = FoilDyn.tau0_database[np.logical_and(FoilDyn.tau0_database[:,0] <= FoilDyn.chord*FoilDyn.cutoff, FoilDyn.tau0_database[:,-1]==desired_steps[step]),:]
@@ -185,6 +186,22 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             plt.setp(axs, xlim=[0, 0.15])
             axs[0, plot_col].set_ylim([-0.1, 0.8])  
             axs[1, plot_col].set_ylim([-50, 150])   
+            # axs[0, plot_col].legend()
+            # axs[1, plot_col].legend()
+            # axs[2, plot_col].legend()
+            
+            # plot_steps = plotting_range*2+1
+            # tau0_steps = range(ws_time-plotting_range, ws_time+plotting_range+1)
+            # dpdx_steps = range(dp_time-plotting_range, dp_time+plotting_range+1)
+            # for step in range(plot_steps):
+                # tau0_filtered = FoilDyn.tau0_database[np.logical_and(FoilDyn.tau0_database[:,0] <= FoilDyn.chord*FoilDyn.cutoff, FoilDyn.tau0_database[:,-1]==tau0_steps[step]),:]
+                # dpdx_filtered = FoilDyn.dp_database[np.logical_and(FoilDyn.dp_database[:,0] <= FoilDyn.chord*FoilDyn.cutoff, FoilDyn.dp_database[:,-1]==dpdx_steps[step]),:]            
+                # axs[0, plot_col].plot(tau0_filtered[:,0]/FoilDyn.chord, tau0_filtered[:,2], label = (tau0_steps[step] % FoilDyn.steps_per_cycle)/FoilDyn.steps_per_cycle, color = (220/255, 68/255, 0, (step+1)/(plot_steps+2)))
+                # axs[1, plot_col].plot(dpdx_filtered[:,0]/FoilDyn.chord, dpdx_filtered[:,3], label = (dpdx_steps[step] % FoilDyn.steps_per_cycle)/FoilDyn.steps_per_cycle, color = (220/255, 68/255, 0, (step+1)/(plot_steps+2)))
+                # axs[2, plot_col].plot(dpdx_filtered[:,0]/FoilDyn.chord, dpdx_filtered[:,4], label = (dpdx_steps[step] % FoilDyn.steps_per_cycle)/FoilDyn.steps_per_cycle, color = (220/255, 68/255, 0, (step+1)/(plot_steps+2)))
+            # plt.setp(axs, xlim=[0, 0.15])
+            # axs[0, plot_col].set_ylim([-0.1, 0.5])  
+            # axs[1, plot_col].set_ylim([-25, 25])
 
             ## Tau data
             desired_steps = np.arange(ws_time - 1, ws_time + 1)
@@ -255,6 +272,24 @@ def main(Files, FoilDyn, FoilGeo, axs, plot_col=1, dataOutput = False, cutoff = 
             axs[1, plot_col].set(xlabel='Position along Chord, [x/C]', ylabel='dP/dx', title=dpdx_headline)
             
             plt.draw()
+            
+            time = int(round(ws_time))
+            file_path = convert_2_txt(data_path+'\\'+"{:.2f}".format(FoilDyn.reduced_frequency).replace(".","")+'-SpaceData-'+str(time))
+            final_data, scatterPlot = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time], FoilDyn.h[time], cutoff)
+            variable_names = final_data[0,:]
+            final_data = final_data[1:,:]
+            vorticity_index = np.where(variable_names == 'vorticity')
+            print(variable_names)
+            print(final_data[np.argmin(final_data[:,vorticity_index].astype(float)),:])
+            
+            time = int(round(dp_time))
+            file_path = convert_2_txt(data_path+'\\'+"{:.2f}".format(FoilDyn.reduced_frequency).replace(".","")+'-SpaceData-'+str(time))
+            final_data, scatterPlot = add_data_columns(file_path, FoilDyn.chord, FoilDyn.theta[time], FoilDyn.h[time], cutoff)
+            variable_names = final_data[0,:]
+            final_data = final_data[1:,:]
+            vorticity_index = np.where(variable_names == 'vorticity')
+            print(variable_names)
+            print(final_data[np.argmin(final_data[:,vorticity_index].astype(float)),:])
             
             if dataOutput == True:
                 return np.hstack((wallshear_details, pressure_details))
